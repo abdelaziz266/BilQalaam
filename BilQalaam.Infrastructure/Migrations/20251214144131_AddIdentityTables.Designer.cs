@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BilQalaam.Infrastructure.Migrations
 {
     [DbContext(typeof(BilQalaamDbContext))]
-    [Migration("20251214135848_add")]
-    partial class add
+    [Migration("20251214144131_AddIdentityTables")]
+    partial class AddIdentityTables
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
