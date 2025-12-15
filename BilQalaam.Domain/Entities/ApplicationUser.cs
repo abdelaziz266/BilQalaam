@@ -1,13 +1,11 @@
-﻿using Microsoft.AspNetCore.Identity;
-using System;
+﻿using BilQalaam.Domain.Enums;
+using Microsoft.AspNetCore.Identity;
 
 namespace BilQalaam.Domain.Entities
 {
-    // يرث من IdentityUser لتفعيل هوية المستخدم (Login, Password, Roles...)
     public class ApplicationUser : IdentityUser
     {
-        // 🧱 الخصائص العامة المشتركة (من BaseEntity)
-        public Guid BaseId { get; set; } = Guid.NewGuid(); // معرّف خاص بالمستخدم داخل النظام
+        public Guid BaseId { get; set; } = Guid.NewGuid();
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
         public DateTime? DeletedAt { get; set; }
@@ -17,22 +15,21 @@ namespace BilQalaam.Domain.Entities
         public bool IsDeleted { get; set; } = false;
 
         // 🧍‍♂️ بيانات المستخدم الشخصية
-        public string FullName { get; set; } = string.Empty; // الاسم الكامل
-        public string? FamilyName { get; set; }               // العائلة
-        public string? Gender { get; set; }                   // النوع (ذكر / أنثى)
-        public int? Age { get; set; }                         // العمر
-        public DateTime? BirthDate { get; set; }              // تاريخ الميلاد
+        public string FullName { get; set; } = string.Empty;
+        public string? FamilyName { get; set; }
+        public Gender? Gender { get; set; }   // ⬅ Enum بدل string
+        public int? Age { get; set; }
+        public DateTime? BirthDate { get; set; }
 
         // 💼 بيانات إدارية
-        public string? Role { get; set; }                     // الدور (SuperAdmin, Admin, Teacher, Student)
-        public string? ContractType { get; set; }             // نوع التكلفة أو العقد
-        public decimal? Salary { get; set; }                  // السعر أو الأجر
-        public DateTime? ContractDate { get; set; }           // تاريخ التعاقد
+        public UserRole? Role { get; set; }   // ⬅ Enum بدل string
+        public string? ContractType { get; set; }
+        public decimal? Salary { get; set; }
+        public DateTime? ContractDate { get; set; }
 
         // ⭐ تقييم المستخدم
-        public double? Rate { get; set; }                     // التقييم
+        public double? Rate { get; set; }
 
-        // 📞 معلومات الاتصال (موروثة من IdentityUser)
         public override string PhoneNumber { get; set; }
         public override string Email { get; set; }
     }
