@@ -1,9 +1,11 @@
 ﻿using BilQalaam.Application.DTOs.Users;
 using BilQalaam.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BilQalaam.Api.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class UsersController : ControllerBase

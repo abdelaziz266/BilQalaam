@@ -1,10 +1,11 @@
 ﻿using BilQalaam.Application.DTOs.Lessons;
 using BilQalaam.Application.Interfaces;
-using BilQalaam.Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BilQalaam.Api.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class LessonsController : ControllerBase
@@ -17,7 +18,8 @@ namespace BilQalaam.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll() => Ok(await _lessonService.GetAllAsync());
+        public async Task<IActionResult> GetAll()
+            => Ok(await _lessonService.GetAllAsync());
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
@@ -26,6 +28,7 @@ namespace BilQalaam.Api.Controllers
             return lesson == null ? NotFound() : Ok(lesson);
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateLessonDto dto)
         {
@@ -33,6 +36,7 @@ namespace BilQalaam.Api.Controllers
             return Ok(new { message = "Lesson created successfully", id });
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateLessonDto dto)
         {
@@ -40,6 +44,7 @@ namespace BilQalaam.Api.Controllers
             return success ? Ok("Lesson updated successfully") : NotFound();
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
