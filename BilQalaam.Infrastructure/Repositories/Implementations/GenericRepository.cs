@@ -1,5 +1,5 @@
-﻿using BilQalaam.Infrastructure.Persistence;
-using BilQalaam.Infrastructure.Repositories.Interfaces;
+﻿using BilQalaam.Application.Repositories.Interfaces;
+using BilQalaam.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
@@ -16,17 +16,22 @@ namespace BilQalaam.Infrastructure.Repositories.Implementations
             _dbSet = _context.Set<T>();
         }
 
-        public async Task<IEnumerable<T>> GetAllAsync() => await _dbSet.ToListAsync();
+        public async Task<IEnumerable<T>> GetAllAsync()
+            => await _dbSet.AsNoTracking().ToListAsync();
 
-        public async Task<T?> GetByIdAsync(object id) => await _dbSet.FindAsync(id);
+        public async Task<T?> GetByIdAsync(object id)
+            => await _dbSet.FindAsync(id);
 
         public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate)
-            => await _dbSet.Where(predicate).ToListAsync();
+            => await _dbSet.Where(predicate).AsNoTracking().ToListAsync();
 
-        public async Task AddAsync(T entity) => await _dbSet.AddAsync(entity);
+        public async Task AddAsync(T entity)
+            => await _dbSet.AddAsync(entity);
 
-        public void Update(T entity) => _dbSet.Update(entity);
+        public void Update(T entity)
+            => _dbSet.Update(entity);
 
-        public void Delete(T entity) => _dbSet.Remove(entity);
+        public void Delete(T entity)
+            => _dbSet.Remove(entity);
     }
 }

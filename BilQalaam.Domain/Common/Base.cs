@@ -1,8 +1,11 @@
-﻿namespace BilQalaam.Domain.Common
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace BilQalaam.Domain.Common
 {
     public class Base
     {
-        public Guid Id { get; set; } = Guid.NewGuid();
+        [Key]
+        public int Id { get; set; }
 
         // 🕒 تواريخ الإنشاء والتحديث
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -10,7 +13,7 @@
         public DateTime? DeletedAt { get; set; }
 
         // 👤 المستخدمين المسؤولين عن الإنشاء والتحديث
-        public string? CreatedBy { get; set; }
+        public string CreatedBy { get; set; }
         public string? UpdatedBy { get; set; }
         public string? DeletedBy { get; set; }
 

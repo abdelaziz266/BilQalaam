@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using BilQalaam.Application.DTOs.Lessons;
 using BilQalaam.Application.DTOs.Users;
 using BilQalaam.Domain.Entities;
 using BilQalaam.Domain.Enums;
@@ -20,6 +21,19 @@ namespace BilQalaam.Application.Mapping
 
             // 🟠 من Update DTO إلى Entity (للـ PUT)
             CreateMap<UpdateUserDto, ApplicationUser>();
+            // 🟢 Entity → Response DTO (GET)
+            CreateMap<Lesson, LessonResponseDto>()
+                .ForMember(dest => dest.StudentName,
+                    opt => opt.MapFrom(src => src.Student != null ? src.Student.FullName : null))
+                .ForMember(dest => dest.FamilyName,
+                    opt => opt.MapFrom(src => src.Family != null ? src.Family.FullName : null));
+
+            // 🟡 Create DTO → Entity (POST)
+            CreateMap<CreateLessonDto, Lesson>();
+
+            // 🟠 Update DTO → Entity (PUT)
+            CreateMap<UpdateLessonDto, Lesson>();
+                
         }
     }
 }
