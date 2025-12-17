@@ -1,5 +1,5 @@
-﻿
-using BilQalaam.Application.Repositories.Interfaces;
+﻿using BilQalaam.Application.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BilQalaam.Application.UnitOfWork
 {
@@ -8,5 +8,7 @@ namespace BilQalaam.Application.UnitOfWork
         IGenericRepository<T> Repository<T>() where T : class;
 
         Task<int> CompleteAsync();
+        
+        Task<IDbContextTransaction> BeginTransactionAsync();
     }
 }

@@ -56,5 +56,15 @@ public class AuthController : ControllerBase
                 )
             );
         }
+        catch (Exception ex)
+        {
+            return StatusCode(500,
+                ApiResponseDto<LoginResponseDto>.Fail(
+                    new List<string> { ex.Message },
+                    "An error occurred",
+                    500
+                )
+            );
+        }
     }
 }

@@ -2,6 +2,7 @@
 using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Infrastructure.Persistence;
 using BilQalaam.Infrastructure.Repositories.Implementations;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace BilQalaam.Infrastructure.UnitOfWorks
 {
@@ -29,6 +30,9 @@ namespace BilQalaam.Infrastructure.UnitOfWorks
 
         public async Task<int> CompleteAsync()
             => await _context.SaveChangesAsync();
+
+        public async Task<IDbContextTransaction> BeginTransactionAsync()
+            => await _context.Database.BeginTransactionAsync();
 
         public void Dispose()
             => _context.Dispose();

@@ -122,6 +122,43 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<BilQalaamDbContext>();
     dbContext.Database.Migrate();
+
+    // =====================
+    // Seed SuperAdmin User
+    // =====================
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+    const string superAdminEmail = "superadmin@bilqalaam.com";
+    const string superAdminPassword = "Aa@12345#";
+    const string superAdminRole = "SuperAdmin";
+
+    // Create Role if not exists
+    if (!await roleManager.RoleExistsAsync(superAdminRole))
+    {
+        await roleManager.CreateAsync(new IdentityRole(superAdminRole));
+    }
+
+    // Create SuperAdmin user if not exists
+    var superAdminUser = await userManager.FindByEmailAsync(superAdminEmail);
+    if (superAdminUser == null)
+    {
+        superAdminUser = new ApplicationUser
+        {
+            UserName = superAdminEmail,
+            Email = superAdminEmail,
+            FullName = "Super Admin",
+            Role = BilQalaam.Domain.Enums.UserRole.SuperAdmin,
+            EmailConfirmed = true,
+            PhoneNumber = "0000000000"
+        };
+
+        var result = await userManager.CreateAsync(superAdminUser, superAdminPassword);
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(superAdminUser, superAdminRole);
+        }
+    }
 }
 
 // =====================

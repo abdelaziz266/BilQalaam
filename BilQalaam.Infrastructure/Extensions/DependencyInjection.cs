@@ -25,6 +25,11 @@ namespace BilQalaam.Infrastructure.Extensions
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<ILessonService, LessonService>();
+            services.AddScoped<IFamilyService, FamilyService>();
+            services.AddScoped<ITeacherService, TeacherService>();
+            services.AddScoped<ISupervisorService, SupervisorService>();
+            services.AddScoped<IStudentService, StudentService>();
+            services.AddScoped<IInvoiceService, InvoiceService>();
             services.AddScoped<IAuthService, AuthService>();
 
             return services;
