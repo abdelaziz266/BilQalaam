@@ -70,6 +70,21 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
 // =====================
+// CORS 🔥 (حل OPTIONS 405)
+// =====================
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAngular",
+        policy =>
+        {
+            policy
+                .AllowAnyOrigin()
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
+});
+
+// =====================
 // Swagger + JWT 🔒
 // =====================
 builder.Services.AddSwaggerGen(c =>
@@ -80,7 +95,6 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1"
     });
 
-    // JWT Bearer Definition
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -88,10 +102,9 @@ builder.Services.AddSwaggerGen(c =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Enter: {your JWT token}"
+        Description = "Enter: Bearer {your JWT token}"
     });
 
-    // Apply JWT globally
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -106,26 +119,18 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
-
-    //    {
-    //        "email": "ahmed.ali@example.com",
-    //  "password": "P@ssw0rd!"
-    //}
 });
 
 var app = builder.Build();
 
 // =====================
-// Auto Apply Migrations
+// Auto Apply Migrations + Seed
 // =====================
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<BilQalaamDbContext>();
     dbContext.Database.Migrate();
 
-    // =====================
-    // Seed SuperAdmin User
-    // =====================
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
@@ -133,13 +138,11 @@ using (var scope = app.Services.CreateScope())
     const string superAdminPassword = "Aa@12345#";
     const string superAdminRole = "SuperAdmin";
 
-    // Create Role if not exists
     if (!await roleManager.RoleExistsAsync(superAdminRole))
     {
         await roleManager.CreateAsync(new IdentityRole(superAdminRole));
     }
 
-    // Create SuperAdmin user if not exists
     var superAdminUser = await userManager.FindByEmailAsync(superAdminEmail);
     if (superAdminUser == null)
     {
@@ -172,8 +175,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseAuthentication();   // 🔑 مهم جدًا
-app.UseAuthorization();    // 🔒
+// 🔥 CORS لازم قبل Auth
+app.UseCors("AllowAngular");
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

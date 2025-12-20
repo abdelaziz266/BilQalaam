@@ -80,7 +80,7 @@ namespace BilQalaam.Application.Services
                 // 2?? ≈‰‘«¡ «·„‘—› „— »ÿ »«·ÌÊ“—
                 var supervisor = new Supervisor
                 {
-                    SupervisorName = dto.SupervisorName,
+                    SupervisorName = dto.FullName,
                     PhoneNumber = dto.PhoneNumber,
                     Email = dto.Email,
                     HourlyRate = dto.HourlyRate,
