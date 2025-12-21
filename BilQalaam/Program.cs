@@ -26,9 +26,14 @@ builder.Services.AddAutoMapper(typeof(UserProfile).Assembly);
 //);
 builder.Services.AddDbContext<BilQalaamDbContext>(options =>
 {
-    var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+    var connectionString = builder.Configuration["DATABASE_URL"];
+
+    if (string.IsNullOrEmpty(connectionString))
+        throw new Exception("DATABASE_URL is missing");
+
     options.UseNpgsql(connectionString);
 });
+
 // =====================
 // Identity
 // =====================
