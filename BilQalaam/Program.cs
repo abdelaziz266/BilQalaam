@@ -170,11 +170,9 @@ app.MapGet("/", () => "BilQalaam API is running 🚀");
 // =====================
 // Middleware
 // =====================
-if (app.Environment.IsDevelopment())
-{
+
     app.UseSwagger();
     app.UseSwaggerUI();
-}
 
 app.UseHttpsRedirection();
 
