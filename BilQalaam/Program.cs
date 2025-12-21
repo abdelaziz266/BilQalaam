@@ -132,6 +132,7 @@ var app = builder.Build();
 // =====================
 // Middleware
 // =====================
+app.MapGet("/", () => "BilQalaam API is running 🚀");
 
 // 🔥 Swagger شغال في Production
 app.UseSwagger();
