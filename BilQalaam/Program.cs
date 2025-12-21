@@ -2,6 +2,7 @@
 using BilQalaam.Domain.Entities;
 using BilQalaam.Infrastructure.Extensions;
 using BilQalaam.Infrastructure.Persistence;
+using BilQalaam.Api;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -174,6 +175,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// 🔥 Exception Handler Middleware (قبل CORS)
+app.UseMiddleware<ExceptionHandlerMiddleware>();
 
 // 🔥 CORS لازم قبل Auth
 app.UseCors("AllowAngular");

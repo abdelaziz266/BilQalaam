@@ -27,26 +27,50 @@ namespace BilQalaam.Api.Controllers
                 ?? throw new UnauthorizedAccessException("User not authenticated");
         }
 
-        // ? GET: api/Teachers
-        [HttpGet]
-        public async Task<IActionResult> GetAll()
+        // ? GET: api/Teachers/get
+        [HttpGet("get")]
+        public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {
-            var teachers = await _teacherService.GetAllAsync();
-            return Ok(ApiResponseDto<IEnumerable<TeacherResponseDto>>.Success(teachers, "Teachers retrieved successfully"));
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            var (teachers, totalCount) = await _teacherService.GetAllAsync(pageNumber, pageSize);
+            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            var paginatedResponse = new PaginatedResponseDto<TeacherResponseDto>
+            {
+                Items = teachers,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                PagesCount = pagesCount
+            };
+
+            return Ok(ApiResponseDto<PaginatedResponseDto<TeacherResponseDto>>.Success(
+                paginatedResponse,
+                " „ «” —Ã«⁄ «·„⁄·„Ì‰ »‰Ã«Õ"
+            ));
         }
 
-        // ? GET: api/Teachers/{id}
-        [HttpGet("{id}")]
+        // ? GET: api/Teachers/get/{id}
+        [HttpGet("get/{id}")]
         public async Task<IActionResult> GetById(int id)
         {
             var teacher = await _teacherService.GetByIdAsync(id);
             return teacher == null
-                ? NotFound(ApiResponseDto<TeacherResponseDto>.Fail(new List<string> { "Teacher not found" }, "Not found", 404))
-                : Ok(ApiResponseDto<TeacherResponseDto>.Success(teacher, "Teacher retrieved successfully"));
+                ? NotFound(ApiResponseDto<TeacherResponseDto>.Fail(
+                    new List<string> { "«·„⁄·„ €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ))
+                : Ok(ApiResponseDto<TeacherResponseDto>.Success(
+                    teacher,
+                    " „ «” —Ã«⁄ «·„⁄·„ »‰Ã«Õ"
+                ));
         }
 
-        // ? POST: api/Teachers
-        [HttpPost]
+        // ? POST: api/Teachers/create
+        [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreateTeacherDto dto)
         {
             if (!ModelState.IsValid)
@@ -56,23 +80,23 @@ namespace BilQalaam.Api.Controllers
                     .Select(e => e.ErrorMessage)
                     .ToList();
 
-                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
 
             try
             {
                 var currentUserId = GetCurrentUserId();
                 var id = await _teacherService.CreateAsync(dto, currentUserId);
-                return Ok(ApiResponseDto<int>.Success(id, "Teacher created successfully", 201));
+                return Ok(ApiResponseDto<int>.Success(id, " „ ≈‰‘«¡ «·„⁄·„ »‰Ã«Õ", 201));
             }
             catch (ValidationException ex)
             {
-                return BadRequest(ApiResponseDto<int>.Fail(ex.Errors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<int>.Fail(ex.Errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
         }
 
-        // ? PUT: api/Teachers/{id}
-        [HttpPut("{id}")]
+        // ? PUT: api/Teachers/update/{id}
+        [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateTeacherDto dto)
         {
             if (!ModelState.IsValid)
@@ -82,24 +106,32 @@ namespace BilQalaam.Api.Controllers
                     .Select(e => e.ErrorMessage)
                     .ToList();
 
-                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
 
             var currentUserId = GetCurrentUserId();
             var success = await _teacherService.UpdateAsync(id, dto, currentUserId);
             return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Teacher updated successfully"))
-                : NotFound(ApiResponseDto<bool>.Fail(new List<string> { "Teacher not found" }, "Not found", 404));
+                ? Ok(ApiResponseDto<bool>.Success(true, " „  ÕœÌÀ «·„⁄·„ »‰Ã«Õ"))
+                : NotFound(ApiResponseDto<bool>.Fail(
+                    new List<string> { "«·„⁄·„ €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ));
         }
 
-        // ? DELETE: api/Teachers/{id}
-        [HttpDelete("{id}")]
+        // ? DELETE: api/Teachers/delete/{id}
+        [HttpDelete("delete/{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             var success = await _teacherService.DeleteAsync(id);
             return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Teacher deleted successfully"))
-                : NotFound(ApiResponseDto<bool>.Fail(new List<string> { "Teacher not found" }, "Not found", 404));
+                ? Ok(ApiResponseDto<bool>.Success(true, " „ Õ–› «·„⁄·„ »‰Ã«Õ"))
+                : NotFound(ApiResponseDto<bool>.Fail(
+                    new List<string> { "«·„⁄·„ €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ));
         }
     }
 }

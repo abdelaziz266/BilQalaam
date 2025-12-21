@@ -17,7 +17,7 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
     {
-        // Validation
+        // التحقق من صحة البيانات
         if (!ModelState.IsValid)
         {
             var errors = ModelState.Values
@@ -28,7 +28,7 @@ public class AuthController : ControllerBase
             return BadRequest(
                 ApiResponseDto<LoginResponseDto>.Fail(
                     errors,
-                    "Validation failed",
+                    "فشل التحقق من البيانات",
                     400
                 )
             );
@@ -41,7 +41,7 @@ public class AuthController : ControllerBase
             return Ok(
                 ApiResponseDto<LoginResponseDto>.Success(
                     result,
-                    "Login successful",
+                    "تم تسجيل الدخول بنجاح",
                     200
                 )
             );
@@ -51,7 +51,7 @@ public class AuthController : ControllerBase
             return Unauthorized(
                 ApiResponseDto<LoginResponseDto>.Fail(
                     new List<string> { ex.Message },
-                    "Unauthorized",
+                    "غير مصرح",
                     401
                 )
             );
@@ -61,7 +61,7 @@ public class AuthController : ControllerBase
             return StatusCode(500,
                 ApiResponseDto<LoginResponseDto>.Fail(
                     new List<string> { ex.Message },
-                    "An error occurred",
+                    "حدث خطأ",
                     500
                 )
             );

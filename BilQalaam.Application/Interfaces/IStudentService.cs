@@ -4,7 +4,7 @@ namespace BilQalaam.Application.Interfaces
 {
     public interface IStudentService
     {
-        Task<IEnumerable<StudentResponseDto>> GetAllAsync();
+        Task<(IEnumerable<StudentResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10);
         Task<StudentResponseDto?> GetByIdAsync(int id);
         Task<IEnumerable<StudentResponseDto>> GetByFamilyIdAsync(int familyId);
         Task<IEnumerable<StudentResponseDto>> GetByTeacherIdAsync(int teacherId);

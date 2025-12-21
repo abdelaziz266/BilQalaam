@@ -27,22 +27,46 @@ namespace BilQalaam.Api.Controllers
                 ?? throw new UnauthorizedAccessException("User not authenticated");
         }
 
-        // ? GET: api/Students
-        [HttpGet]
-        public async Task<IActionResult> GetAll()
+        // ? GET: api/Students/get
+        [HttpGet("get")]
+        public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {
-            var students = await _studentService.GetAllAsync();
-            return Ok(ApiResponseDto<IEnumerable<StudentResponseDto>>.Success(students, "Students retrieved successfully"));
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            var (students, totalCount) = await _studentService.GetAllAsync(pageNumber, pageSize);
+            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            var paginatedResponse = new PaginatedResponseDto<StudentResponseDto>
+            {
+                Items = students,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                PagesCount = pagesCount
+            };
+
+            return Ok(ApiResponseDto<PaginatedResponseDto<StudentResponseDto>>.Success(
+                paginatedResponse,
+                " „ «” —Ã«⁄ «·ÿ·«» »‰Ã«Õ"
+            ));
         }
 
-        // ? GET: api/Students/{id}
-        [HttpGet("{id}")]
+        // ? GET: api/Students/get/{id}
+        [HttpGet("get/{id}")]
         public async Task<IActionResult> GetById(int id)
         {
             var student = await _studentService.GetByIdAsync(id);
             return student == null
-                ? NotFound(ApiResponseDto<StudentResponseDto>.Fail(new List<string> { "Student not found" }, "Not found", 404))
-                : Ok(ApiResponseDto<StudentResponseDto>.Success(student, "Student retrieved successfully"));
+                ? NotFound(ApiResponseDto<StudentResponseDto>.Fail(
+                    new List<string> { "«·ÿ«·» €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ))
+                : Ok(ApiResponseDto<StudentResponseDto>.Success(
+                    student,
+                    " „ «” —Ã«⁄ «·ÿ«·» »‰Ã«Õ"
+                ));
         }
 
         // ? GET: api/Students/ByFamily/{familyId}
@@ -50,7 +74,7 @@ namespace BilQalaam.Api.Controllers
         public async Task<IActionResult> GetByFamilyId(int familyId)
         {
             var students = await _studentService.GetByFamilyIdAsync(familyId);
-            return Ok(ApiResponseDto<IEnumerable<StudentResponseDto>>.Success(students, "Students retrieved successfully"));
+            return Ok(ApiResponseDto<IEnumerable<StudentResponseDto>>.Success(students, " „ «” —Ã«⁄ «·ÿ·«» »‰Ã«Õ"));
         }
 
         // ? GET: api/Students/ByTeacher/{teacherId}
@@ -58,11 +82,11 @@ namespace BilQalaam.Api.Controllers
         public async Task<IActionResult> GetByTeacherId(int teacherId)
         {
             var students = await _studentService.GetByTeacherIdAsync(teacherId);
-            return Ok(ApiResponseDto<IEnumerable<StudentResponseDto>>.Success(students, "Students retrieved successfully"));
+            return Ok(ApiResponseDto<IEnumerable<StudentResponseDto>>.Success(students, " „ «” —Ã«⁄ «·ÿ·«» »‰Ã«Õ"));
         }
 
-        // ? POST: api/Students
-        [HttpPost]
+        // ? POST: api/Students/create
+        [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreateStudentDto dto)
         {
             if (!ModelState.IsValid)
@@ -72,23 +96,23 @@ namespace BilQalaam.Api.Controllers
                     .Select(e => e.ErrorMessage)
                     .ToList();
 
-                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
 
             try
             {
                 var currentUserId = GetCurrentUserId();
                 var id = await _studentService.CreateAsync(dto, currentUserId);
-                return Ok(ApiResponseDto<int>.Success(id, "Student created successfully", 201));
+                return Ok(ApiResponseDto<int>.Success(id, " „ ≈‰‘«¡ «·ÿ«·» »‰Ã«Õ", 201));
             }
             catch (ValidationException ex)
             {
-                return BadRequest(ApiResponseDto<int>.Fail(ex.Errors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<int>.Fail(ex.Errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
         }
 
-        // ? PUT: api/Students/{id}
-        [HttpPut("{id}")]
+        // ? PUT: api/Students/update/{id}
+        [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateStudentDto dto)
         {
             if (!ModelState.IsValid)
@@ -98,24 +122,32 @@ namespace BilQalaam.Api.Controllers
                     .Select(e => e.ErrorMessage)
                     .ToList();
 
-                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
 
             var currentUserId = GetCurrentUserId();
             var success = await _studentService.UpdateAsync(id, dto, currentUserId);
             return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Student updated successfully"))
-                : NotFound(ApiResponseDto<bool>.Fail(new List<string> { "Student not found" }, "Not found", 404));
+                ? Ok(ApiResponseDto<bool>.Success(true, " „  ÕœÌÀ «·ÿ«·» »‰Ã«Õ"))
+                : NotFound(ApiResponseDto<bool>.Fail(
+                    new List<string> { "«·ÿ«·» €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ));
         }
 
-        // ? DELETE: api/Students/{id}
-        [HttpDelete("{id}")]
+        // ? DELETE: api/Students/delete/{id}
+        [HttpDelete("delete/{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             var success = await _studentService.DeleteAsync(id);
             return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Student deleted successfully"))
-                : NotFound(ApiResponseDto<bool>.Fail(new List<string> { "Student not found" }, "Not found", 404));
+                ? Ok(ApiResponseDto<bool>.Success(true, " „ Õ–› «·ÿ«·» »‰Ã«Õ"))
+                : NotFound(ApiResponseDto<bool>.Fail(
+                    new List<string> { "«·ÿ«·» €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ));
         }
     }
 }

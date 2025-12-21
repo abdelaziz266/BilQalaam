@@ -36,45 +36,79 @@ namespace BilQalaam.Api.Controllers
             return User.FindFirstValue(ClaimTypes.Role) ?? "";
         }
 
-        // ✅ GET: api/Lessons (الأدمن يشوف كل الدروس، المعلم يشوف دروسه بس)
-        [HttpGet]
-        public async Task<IActionResult> GetAll()
+        // ✅ GET: api/Lessons/get
+        [HttpGet("get")]
+        public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
             var role = GetCurrentUserRole();
             var userId = GetCurrentUserId();
 
             IEnumerable<LessonResponseDto> lessons;
+            int totalCount;
 
             if (role == "SuperAdmin" || role == "Admin")
             {
-                lessons = await _lessonService.GetAllAsync();
+                (lessons, totalCount) = await _lessonService.GetAllAsync(pageNumber, pageSize);
             }
             else if (role == "Teacher")
             {
-                // جلب Teacher ID من User ID
                 var teachers = await _unitOfWork.Repository<Teacher>().FindAsync(t => t.UserId == userId);
                 var teacher = teachers.FirstOrDefault();
                 if (teacher == null)
-                    return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(new List<LessonResponseDto>(), "No lessons found"));
+                    return Ok(ApiResponseDto<PaginatedResponseDto<LessonResponseDto>>.Success(
+                        new PaginatedResponseDto<LessonResponseDto>
+                        {
+                            Items = new List<LessonResponseDto>(),
+                            PageNumber = pageNumber,
+                            PageSize = pageSize,
+                            TotalCount = 0,
+                            PagesCount = 0
+                        },
+                        "لم يتم العثور على دروس"
+                    ));
 
-                lessons = await _lessonService.GetByTeacherIdAsync(teacher.Id);
+                (lessons, totalCount) = await _lessonService.GetByTeacherIdAsync(teacher.Id, pageNumber, pageSize);
             }
             else
             {
                 return Forbid();
             }
 
-            return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(lessons, "Lessons retrieved successfully"));
+            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            var paginatedResponse = new PaginatedResponseDto<LessonResponseDto>
+            {
+                Items = lessons,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                PagesCount = pagesCount
+            };
+
+            return Ok(ApiResponseDto<PaginatedResponseDto<LessonResponseDto>>.Success(
+                paginatedResponse,
+                "تم استرجاع الدروس بنجاح"
+            ));
         }
 
-        // ✅ GET: api/Lessons/{id}
-        [HttpGet("{id}")]
+        // ✅ GET: api/Lessons/get/{id}
+        [HttpGet("get/{id}")]
         public async Task<IActionResult> GetById(int id)
         {
             var lesson = await _lessonService.GetByIdAsync(id);
             return lesson == null
-                ? NotFound(ApiResponseDto<LessonResponseDto>.Fail(new List<string> { "Lesson not found" }, "Not found", 404))
-                : Ok(ApiResponseDto<LessonResponseDto>.Success(lesson, "Lesson retrieved successfully"));
+                ? NotFound(ApiResponseDto<LessonResponseDto>.Fail(
+                    new List<string> { "الدرس غير موجود" },
+                    "لم يتم العثور عليه",
+                    404
+                ))
+                : Ok(ApiResponseDto<LessonResponseDto>.Success(
+                    lesson,
+                    "تم استرجاع الدرس بنجاح"
+                ));
         }
 
         // ✅ GET: api/Lessons/ByTeacher/{teacherId}
@@ -82,8 +116,8 @@ namespace BilQalaam.Api.Controllers
         [HttpGet("ByTeacher/{teacherId}")]
         public async Task<IActionResult> GetByTeacherId(int teacherId)
         {
-            var lessons = await _lessonService.GetByTeacherIdAsync(teacherId);
-            return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(lessons, "Lessons retrieved successfully"));
+            var (lessons, _) = await _lessonService.GetByTeacherIdAsync(teacherId);
+            return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(lessons, "تم استرجاع الدروس بنجاح"));
         }
 
         // ✅ GET: api/Lessons/ByFamily/{familyId}
@@ -92,7 +126,7 @@ namespace BilQalaam.Api.Controllers
         public async Task<IActionResult> GetByFamilyId(int familyId)
         {
             var lessons = await _lessonService.GetByFamilyIdAsync(familyId);
-            return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(lessons, "Lessons retrieved successfully"));
+            return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(lessons, "تم استرجاع الدروس بنجاح"));
         }
 
         // ✅ GET: api/Lessons/ByStudent/{studentId}
@@ -100,7 +134,7 @@ namespace BilQalaam.Api.Controllers
         public async Task<IActionResult> GetByStudentId(int studentId)
         {
             var lessons = await _lessonService.GetByStudentIdAsync(studentId);
-            return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(lessons, "Lessons retrieved successfully"));
+            return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(lessons, "تم استرجاع الدروس بنجاح"));
         }
 
         // ✅ GET: api/Lessons/ByDateRange?fromDate=...&toDate=...
@@ -109,12 +143,12 @@ namespace BilQalaam.Api.Controllers
         public async Task<IActionResult> GetByDateRange([FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
         {
             var lessons = await _lessonService.GetByDateRangeAsync(fromDate, toDate);
-            return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(lessons, "Lessons retrieved successfully"));
+            return Ok(ApiResponseDto<IEnumerable<LessonResponseDto>>.Success(lessons, "تم استرجاع الدروس بنجاح"));
         }
 
-        // ✅ POST: api/Lessons (المعلم يسجل درس)
+        // ✅ POST: api/Lessons/create
         [Authorize(Roles = "SuperAdmin,Admin,Teacher")]
-        [HttpPost]
+        [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreateLessonDto dto)
         {
             if (!ModelState.IsValid)
@@ -124,7 +158,7 @@ namespace BilQalaam.Api.Controllers
                     .Select(e => e.ErrorMessage)
                     .ToList();
 
-                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "فشل التحقق من البيانات", 400));
             }
 
             try
@@ -136,36 +170,42 @@ namespace BilQalaam.Api.Controllers
 
                 if (role == "Teacher")
                 {
-                    // المعلم يسجل درس لطلابه فقط
                     var teachers = await _unitOfWork.Repository<Teacher>().FindAsync(t => t.UserId == userId);
                     var teacher = teachers.FirstOrDefault();
                     if (teacher == null)
-                        return BadRequest(ApiResponseDto<int>.Fail(new List<string> { "لم يتم العثور على بيانات المعلم" }, "Validation failed", 400));
+                        return BadRequest(ApiResponseDto<int>.Fail(
+                            new List<string> { "لم يتم العثور على بيانات المعلم" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
 
                     teacherId = teacher.Id;
                 }
                 else
                 {
-                    // الأدمن يحتاج يحدد المعلم
                     var student = await _unitOfWork.Repository<Student>().GetByIdAsync(dto.StudentId);
                     if (student == null)
-                        return BadRequest(ApiResponseDto<int>.Fail(new List<string> { "الطالب غير موجود" }, "Validation failed", 400));
+                        return BadRequest(ApiResponseDto<int>.Fail(
+                            new List<string> { "الطالب غير موجود" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
 
                     teacherId = student.TeacherId;
                 }
 
                 var id = await _lessonService.CreateAsync(dto, teacherId, userId);
-                return Ok(ApiResponseDto<int>.Success(id, "Lesson created successfully", 201));
+                return Ok(ApiResponseDto<int>.Success(id, "تم إنشاء الدرس بنجاح", 201));
             }
             catch (ValidationException ex)
             {
-                return BadRequest(ApiResponseDto<int>.Fail(ex.Errors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<int>.Fail(ex.Errors, "فشل التحقق من البيانات", 400));
             }
         }
 
-        // ✅ PUT: api/Lessons/{id}
+        // ✅ PUT: api/Lessons/update/{id}
         [Authorize(Roles = "SuperAdmin,Admin,Teacher")]
-        [HttpPut("{id}")]
+        [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateLessonDto dto)
         {
             if (!ModelState.IsValid)
@@ -175,25 +215,33 @@ namespace BilQalaam.Api.Controllers
                     .Select(e => e.ErrorMessage)
                     .ToList();
 
-                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "فشل التحقق من البيانات", 400));
             }
 
             var currentUserId = GetCurrentUserId();
             var success = await _lessonService.UpdateAsync(id, dto, currentUserId);
             return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Lesson updated successfully"))
-                : NotFound(ApiResponseDto<bool>.Fail(new List<string> { "Lesson not found" }, "Not found", 404));
+                ? Ok(ApiResponseDto<bool>.Success(true, "تم تحديث الدرس بنجاح"))
+                : NotFound(ApiResponseDto<bool>.Fail(
+                    new List<string> { "الدرس غير موجود" },
+                    "لم يتم العثور عليه",
+                    404
+                ));
         }
 
-        // ✅ DELETE: api/Lessons/{id}
+        // ✅ DELETE: api/Lessons/delete/{id}
         [Authorize(Roles = "SuperAdmin,Admin")]
-        [HttpDelete("{id}")]
+        [HttpDelete("delete/{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             var success = await _lessonService.DeleteAsync(id);
             return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Lesson deleted successfully"))
-                : NotFound(ApiResponseDto<bool>.Fail(new List<string> { "Lesson not found" }, "Not found", 404));
+                ? Ok(ApiResponseDto<bool>.Success(true, "تم حذف الدرس بنجاح"))
+                : NotFound(ApiResponseDto<bool>.Fail(
+                    new List<string> { "الدرس غير موجود" },
+                    "لم يتم العثور عليه",
+                    404
+                ));
         }
     }
 }

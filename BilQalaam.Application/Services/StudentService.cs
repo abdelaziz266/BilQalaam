@@ -28,40 +28,73 @@ namespace BilQalaam.Application.Services
             _roleManager = roleManager;
         }
 
-        public async Task<IEnumerable<StudentResponseDto>> GetAllAsync()
+        public async Task<(IEnumerable<StudentResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10)
         {
-            var students = await _unitOfWork
-                .Repository<Student>()
-                .GetAllAsync();
+            try
+            {
+                var students = await _unitOfWork
+                    .Repository<Student>()
+                    .GetAllAsync();
 
-            return _mapper.Map<IEnumerable<StudentResponseDto>>(students);
+                var totalCount = students.Count();
+                var paginatedStudents = students
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize);
+
+                return (_mapper.Map<IEnumerable<StudentResponseDto>>(paginatedStudents), totalCount);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» «·ÿ·«»: {ex.Message}" });
+            }
         }
 
         public async Task<StudentResponseDto?> GetByIdAsync(int id)
         {
-            var student = await _unitOfWork
-                .Repository<Student>()
-                .GetByIdAsync(id);
+            try
+            {
+                var student = await _unitOfWork
+                    .Repository<Student>()
+                    .GetByIdAsync(id);
 
-            return student == null ? null : _mapper.Map<StudentResponseDto>(student);
+                return student == null ? null : _mapper.Map<StudentResponseDto>(student);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» «·ÿ«·»: {ex.Message}" });
+            }
         }
 
         public async Task<IEnumerable<StudentResponseDto>> GetByFamilyIdAsync(int familyId)
         {
-            var students = await _unitOfWork
-                .Repository<Student>()
-                .FindAsync(s => s.FamilyId == familyId);
+            try
+            {
+                var students = await _unitOfWork
+                    .Repository<Student>()
+                    .FindAsync(s => s.FamilyId == familyId);
 
-            return _mapper.Map<IEnumerable<StudentResponseDto>>(students);
+                return _mapper.Map<IEnumerable<StudentResponseDto>>(students);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» ÿ·«» «·⁄«∆·…: {ex.Message}" });
+            }
         }
 
         public async Task<IEnumerable<StudentResponseDto>> GetByTeacherIdAsync(int teacherId)
         {
-            var students = await _unitOfWork
-                .Repository<Student>()
-                .FindAsync(s => s.TeacherId == teacherId);
+            try
+            {
+                var students = await _unitOfWork
+                    .Repository<Student>()
+                    .FindAsync(s => s.TeacherId == teacherId);
 
-            return _mapper.Map<IEnumerable<StudentResponseDto>>(students);
+                return _mapper.Map<IEnumerable<StudentResponseDto>>(students);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» ÿ·«» «·„⁄·„: {ex.Message}" });
+            }
         }
 
         public async Task<int> CreateAsync(CreateStudentDto dto, string createdByUserId)
@@ -70,10 +103,20 @@ namespace BilQalaam.Application.Services
 
             try
             {
+                // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «·«Ì„Ì·
+                var existingUserByEmail = await _userManager.FindByEmailAsync(dto.Email);
+                if (existingUserByEmail != null)
+                    throw new ValidationException(new List<string> { "«·»—Ìœ «·≈·ﬂ —Ê‰Ì „” Œœ„ »«·›⁄·" });
+
+                // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «”„ «·ÿ«·»
+                var students = await _unitOfWork.Repository<Student>().FindAsync(s => s.StudentName == dto.StudentName);
+                if (students.Any())
+                    throw new ValidationException(new List<string> { "«”„ «·ÿ«·» „” Œœ„ »«·›⁄·" });
+
                 // «· Õﬁﬁ „‰ ÊÃÊœ «·⁄«∆·…
                 var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
                 if (family == null)
-                    throw new ValidationException(new List<string> { "«·⁄«∆·… €Ì— „ÊÃÊœ…" });
+                    throw new ValidationException(new List<string> { "«·√”—… €Ì— „ÊÃÊœ…" });
 
                 // «· Õﬁﬁ „‰ ÊÃÊœ «·„⁄·„
                 var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
@@ -127,68 +170,137 @@ namespace BilQalaam.Application.Services
 
                 return student.Id;
             }
-            catch (Exception)
+            catch (ValidationException)
             {
                 await transaction.RollbackAsync();
                 throw;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì ≈‰‘«¡ «·ÿ«·»: {ex.Message}" });
             }
         }
 
         public async Task<bool> UpdateAsync(int id, UpdateStudentDto dto, string updatedByUserId)
         {
-            var student = await _unitOfWork.Repository<Student>().GetByIdAsync(id);
-            if (student == null) return false;
-
-            // «· Õﬁﬁ „‰ ÊÃÊœ «·⁄«∆·…
-            var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
-            if (family == null) return false;
-
-            // «· Õﬁﬁ „‰ ÊÃÊœ «·„⁄·„
-            var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
-            if (teacher == null) return false;
-
-            //  ÕœÌÀ »Ì«‰«  «·ÿ«·»
-            student.StudentName = dto.StudentName;
-            student.PhoneNumber = dto.PhoneNumber;
-            student.HourlyRate = dto.HourlyRate;
-            student.Currency = dto.Currency;
-            student.FamilyId = dto.FamilyId;
-            student.TeacherId = dto.TeacherId;
-            student.UpdatedAt = DateTime.UtcNow;
-            student.UpdatedBy = updatedByUserId;
-
-            //  ÕœÌÀ »Ì«‰«  «·ÌÊ“—
-            var user = await _userManager.FindByIdAsync(student.UserId);
-            if (user != null)
+            try
             {
-                user.FullName = dto.FullName;
-                user.PhoneNumber = dto.PhoneNumber;
-                user.UpdatedAt = DateTime.UtcNow;
-                await _userManager.UpdateAsync(user);
+                var student = await _unitOfWork.Repository<Student>().GetByIdAsync(id);
+                if (student == null) return false;
+
+                // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «”„ «·ÿ«·» (≈–«  „  €ÌÌ—Â)
+                if (student.StudentName != dto.StudentName)
+                {
+                    var existingStudent = await _unitOfWork.Repository<Student>()
+                        .FindAsync(s => s.StudentName == dto.StudentName && s.Id != id);
+                    if (existingStudent.Any())
+                        throw new ValidationException(new List<string> { "«”„ «·ÿ«·» „” Œœ„ »«·›⁄·" });
+                }
+
+                var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
+                if (family == null) return false;
+
+                var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
+                if (teacher == null) return false;
+
+                student.StudentName = dto.StudentName;
+                student.PhoneNumber = dto.PhoneNumber;
+                student.HourlyRate = dto.HourlyRate;
+                student.Currency = dto.Currency;
+                student.FamilyId = dto.FamilyId;
+                student.TeacherId = dto.TeacherId;
+                student.UpdatedAt = DateTime.UtcNow;
+                student.UpdatedBy = updatedByUserId;
+
+                var user = await _userManager.FindByIdAsync(student.UserId);
+                if (user != null)
+                {
+                    user.FullName = dto.FullName;
+                    user.PhoneNumber = dto.PhoneNumber;
+                    user.UpdatedAt = DateTime.UtcNow;
+
+                    //  ÕœÌÀ ﬂ·„… «·„—Ê— ≈–«  „  Ê›Ì—Â«
+                    if (!string.IsNullOrWhiteSpace(dto.Password))
+                    {
+                        var removeResult = await _userManager.RemovePasswordAsync(user);
+                        if (!removeResult.Succeeded)
+                        {
+                            var errors = removeResult.Errors.Select(e => e.Description).ToList();
+                            throw new ValidationException(errors);
+                        }
+
+                        var addResult = await _userManager.AddPasswordAsync(user, dto.Password);
+                        if (!addResult.Succeeded)
+                        {
+                            var errors = addResult.Errors.Select(e => e.Description).ToList();
+                            throw new ValidationException(errors);
+                        }
+                    }
+
+                    await _userManager.UpdateAsync(user);
+                }
+
+                _unitOfWork.Repository<Student>().Update(student);
+                await _unitOfWork.CompleteAsync();
+
+                return true;
             }
-
-            _unitOfWork.Repository<Student>().Update(student);
-            await _unitOfWork.CompleteAsync();
-
-            return true;
+            catch (ValidationException)
+            {
+                throw;
+            }
+            catch (InvalidOperationException ex) when (ex.InnerException is Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì  ÕœÌÀ «·ÿ«·»: {ex.Message}" });
+            }
         }
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var student = await _unitOfWork.Repository<Student>().GetByIdAsync(id);
-            if (student == null) return false;
-
-            // Õ–› «·ÌÊ“—
-            var user = await _userManager.FindByIdAsync(student.UserId);
-            if (user != null)
+            try
             {
-                await _userManager.DeleteAsync(user);
+                var student = await _unitOfWork.Repository<Student>().GetByIdAsync(id);
+                if (student == null) return false;
+
+                // ??? Soft Delete
+                student.IsDeleted = true;
+                student.DeletedAt = DateTime.UtcNow;
+                student.DeletedBy = id.ToString();
+
+                _unitOfWork.Repository<Student>().Update(student);
+                await _unitOfWork.CompleteAsync();
+
+                return true;
             }
-
-            _unitOfWork.Repository<Student>().Delete(student);
-            await _unitOfWork.CompleteAsync();
-
-            return true;
+            catch (ValidationException)
+            {
+                throw;
+            }
+            catch (InvalidOperationException ex) when (ex.InnerException is Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException?.Message.Contains("FOREIGN KEY") == true)
+            {
+                throw new ValidationException(new List<string> { "·« Ì„ﬂ‰ Õ–› Â–« «·ÿ«·» ·√‰Â „— »ÿ »»Ì«‰«  √Œ—Ï." });
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Õ–› «·ÿ«·»: {ex.Message}" });
+            }
         }
     }
 }

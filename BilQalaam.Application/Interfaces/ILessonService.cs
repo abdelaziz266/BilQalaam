@@ -4,11 +4,11 @@ namespace BilQalaam.Application.Interfaces
 {
     public interface ILessonService
     {
-        Task<IEnumerable<LessonResponseDto>> GetAllAsync();
+        Task<(IEnumerable<LessonResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10);
         Task<LessonResponseDto?> GetByIdAsync(int id);
 
         // 🔍 فلترة الدروس
-        Task<IEnumerable<LessonResponseDto>> GetByTeacherIdAsync(int teacherId);
+        Task<(IEnumerable<LessonResponseDto>, int)> GetByTeacherIdAsync(int teacherId, int pageNumber = 1, int pageSize = 10);
         Task<IEnumerable<LessonResponseDto>> GetByFamilyIdAsync(int familyId);
         Task<IEnumerable<LessonResponseDto>> GetByStudentIdAsync(int studentId);
         Task<IEnumerable<LessonResponseDto>> GetByDateRangeAsync(DateTime fromDate, DateTime toDate);

@@ -41,8 +41,15 @@ namespace BilQalaam.Api.Controllers
         {
             var invoice = await _invoiceService.GetFamilyInvoiceAsync(familyId, fromDate, toDate);
             return invoice == null
-                ? NotFound(ApiResponseDto<FamilyInvoiceDto>.Fail(new List<string> { "Family not found" }, "Not found", 404))
-                : Ok(ApiResponseDto<FamilyInvoiceDto>.Success(invoice, "Family invoice retrieved successfully"));
+                ? NotFound(ApiResponseDto<FamilyInvoiceDto>.Fail(
+                    new List<string> { "«·⁄«∆·… €Ì— „ÊÃÊœ…" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ«",
+                    404
+                ))
+                : Ok(ApiResponseDto<FamilyInvoiceDto>.Success(
+                    invoice,
+                    " „ «” —Ã«⁄ ›« Ê—… «·⁄«∆·… »‰Ã«Õ"
+                ));
         }
 
         // ? GET: api/Invoices/Teacher/{teacherId}?fromDate=...&toDate=...
@@ -63,8 +70,15 @@ namespace BilQalaam.Api.Controllers
 
             var invoice = await _invoiceService.GetTeacherInvoiceAsync(teacherId, fromDate, toDate);
             return invoice == null
-                ? NotFound(ApiResponseDto<TeacherInvoiceDto>.Fail(new List<string> { "Teacher not found" }, "Not found", 404))
-                : Ok(ApiResponseDto<TeacherInvoiceDto>.Success(invoice, "Teacher invoice retrieved successfully"));
+                ? NotFound(ApiResponseDto<TeacherInvoiceDto>.Fail(
+                    new List<string> { "«·„⁄·„ €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ))
+                : Ok(ApiResponseDto<TeacherInvoiceDto>.Success(
+                    invoice,
+                    " „ «” —Ã«⁄ ›« Ê—… «·„⁄·„ »‰Ã«Õ"
+                ));
         }
 
         // ? GET: api/Invoices/Teacher/My?fromDate=...&toDate=... («·„⁄·„ Ì‘Ê› ›« Ê— Â)
@@ -77,12 +91,23 @@ namespace BilQalaam.Api.Controllers
             var teacher = teachers.FirstOrDefault();
 
             if (teacher == null)
-                return NotFound(ApiResponseDto<TeacherInvoiceDto>.Fail(new List<string> { "Teacher not found" }, "Not found", 404));
+                return NotFound(ApiResponseDto<TeacherInvoiceDto>.Fail(
+                    new List<string> { "«·„⁄·„ €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ));
 
             var invoice = await _invoiceService.GetTeacherInvoiceAsync(teacher.Id, fromDate, toDate);
             return invoice == null
-                ? NotFound(ApiResponseDto<TeacherInvoiceDto>.Fail(new List<string> { "No lessons found" }, "Not found", 404))
-                : Ok(ApiResponseDto<TeacherInvoiceDto>.Success(invoice, "Teacher invoice retrieved successfully"));
+                ? NotFound(ApiResponseDto<TeacherInvoiceDto>.Fail(
+                    new List<string> { "·„ Ì „ «·⁄ÀÊ— ⁄·Ï œ—Ê”" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ))
+                : Ok(ApiResponseDto<TeacherInvoiceDto>.Success(
+                    invoice,
+                    " „ «” —Ã«⁄ ›« Ê— ﬂ »‰Ã«Õ"
+                ));
         }
 
         // ? GET: api/Invoices/Supervisor/{supervisorId}?fromDate=...&toDate=...
@@ -92,8 +117,15 @@ namespace BilQalaam.Api.Controllers
         {
             var invoice = await _invoiceService.GetSupervisorInvoiceAsync(supervisorId, fromDate, toDate);
             return invoice == null
-                ? NotFound(ApiResponseDto<SupervisorInvoiceDto>.Fail(new List<string> { "Supervisor not found" }, "Not found", 404))
-                : Ok(ApiResponseDto<SupervisorInvoiceDto>.Success(invoice, "Supervisor invoice retrieved successfully"));
+                ? NotFound(ApiResponseDto<SupervisorInvoiceDto>.Fail(
+                    new List<string> { "«·„‘—› €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ))
+                : Ok(ApiResponseDto<SupervisorInvoiceDto>.Success(
+                    invoice,
+                    " „ «” —Ã«⁄ ›« Ê—… «·„‘—› »‰Ã«Õ"
+                ));
         }
 
         // ? GET: api/Invoices/AllFamilies?fromDate=...&toDate=...&supervisorId=...
@@ -102,7 +134,10 @@ namespace BilQalaam.Api.Controllers
         public async Task<IActionResult> GetAllFamilyInvoices([FromQuery] DateTime fromDate, [FromQuery] DateTime toDate, [FromQuery] int? supervisorId = null)
         {
             var invoices = await _invoiceService.GetAllFamilyInvoicesAsync(fromDate, toDate, supervisorId);
-            return Ok(ApiResponseDto<IEnumerable<FamilyInvoiceDto>>.Success(invoices, "Family invoices retrieved successfully"));
+            return Ok(ApiResponseDto<IEnumerable<FamilyInvoiceDto>>.Success(
+                invoices,
+                " „ «” —Ã«⁄ ›Ê« Ì— «·⁄«∆·«  »‰Ã«Õ"
+            ));
         }
 
         // ? GET: api/Invoices/AllTeachers?fromDate=...&toDate=...&supervisorId=...
@@ -111,7 +146,10 @@ namespace BilQalaam.Api.Controllers
         public async Task<IActionResult> GetAllTeacherInvoices([FromQuery] DateTime fromDate, [FromQuery] DateTime toDate, [FromQuery] int? supervisorId = null)
         {
             var invoices = await _invoiceService.GetAllTeacherInvoicesAsync(fromDate, toDate, supervisorId);
-            return Ok(ApiResponseDto<IEnumerable<TeacherInvoiceDto>>.Success(invoices, "Teacher invoices retrieved successfully"));
+            return Ok(ApiResponseDto<IEnumerable<TeacherInvoiceDto>>.Success(
+                invoices,
+                " „ «” —Ã«⁄ ›Ê« Ì— «·„⁄·„Ì‰ »‰Ã«Õ"
+            ));
         }
     }
 }

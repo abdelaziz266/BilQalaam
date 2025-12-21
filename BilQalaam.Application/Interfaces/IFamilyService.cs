@@ -1,13 +1,14 @@
 using BilQalaam.Application.DTOs.Families;
+using BilQalaam.Application.Results;
 
 namespace BilQalaam.Application.Interfaces
 {
     public interface IFamilyService
     {
-        Task<IEnumerable<FamilyResponseDto>> GetAllAsync();
+        Task<(IEnumerable<FamilyResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10);
         Task<FamilyResponseDto?> GetByIdAsync(int id);
-        Task<int> CreateAsync(CreateFamilyDto dto, string createdByUserId);
-        Task<bool> UpdateAsync(int id, UpdateFamilyDto dto, string updatedByUserId);
-        Task<bool> DeleteAsync(int id);
+        Task<Result<int>> CreateAsync(CreateFamilyDto dto, string createdByUserId);
+        Task<Result<bool>> UpdateAsync(int id, UpdateFamilyDto dto, string updatedByUserId);
+        Task<Result<bool>> DeleteAsync(int id);
     }
 }

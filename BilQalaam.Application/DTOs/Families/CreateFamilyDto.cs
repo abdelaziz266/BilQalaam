@@ -1,24 +1,39 @@
 using BilQalaam.Domain.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace BilQalaam.Application.DTOs.Families
 {
     public class CreateFamilyDto
     {
-        // ?? »Ì«‰«  «·ÌÊ“—
+        // ?? »Ì«‰«  «·„” Œœ„
+        [Required(ErrorMessage = "«·«”„ «·ﬂ«„· „ÿ·Ê»")]
+        [StringLength(100, MinimumLength = 3, ErrorMessage = "«·«”„ ÌÃ» √‰ ÌﬂÊ‰ »Ì‰ 3 Ê 100 Õ—›")]
         public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "«·»—Ìœ «·≈·ﬂ —Ê‰Ì „ÿ·Ê»")]
+        [EmailAddress(ErrorMessage = "«·»—Ìœ «·≈·ﬂ —Ê‰Ì €Ì— ’ÕÌÕ")]
         public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "—ﬁ„ «·Â« › „ÿ·Ê»")]
+        [RegularExpression(@"^(010|011|012)\d{8}$", ErrorMessage = "—ﬁ„ «·Â« › ÌÃ» √‰ Ì»œ√ » 010 √Ê 011 √Ê 012 ÊÌﬂÊ‰ 11 —ﬁ„")]
         public string PhoneNumber { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "ﬂ·„… «·„—Ê— „ÿ·Ê»…")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "ﬂ·„… «·„—Ê— ÌÃ» √‰  ﬂÊ‰ »Ì‰ 6 Ê 100 Õ—›")]
         public string Password { get; set; } = string.Empty;
 
-        // ??û??û?? »Ì«‰«  «·⁄«∆·…
-        public string FamilyName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "«·œÊ·… „ÿ·Ê»…")]
+        [StringLength(50, MinimumLength = 2, ErrorMessage = "«”„ «·œÊ·… ÌÃ» √‰ ÌﬂÊ‰ »Ì‰ 2 Ê 50 Õ—›")]
         public string Country { get; set; } = string.Empty;
 
-        // ?? «·„‘—› «· «»⁄ ·Â
+        // ?? «·„‘—› «·„”ƒÊ· ⁄‰Â«
         public int? SupervisorId { get; set; }
 
-        // ?? »Ì«‰«  „«·Ì…
+        // ?? √Ã— «·⁄«∆·…
+        [Range(0.01, double.MaxValue, ErrorMessage = "”⁄— «·”«⁄… ÌÃ» √‰ ÌﬂÊ‰ √ﬂ»— „‰ 0")]
         public decimal HourlyRate { get; set; }
+
         public Currency Currency { get; set; }
     }
 }

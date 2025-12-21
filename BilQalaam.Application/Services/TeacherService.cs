@@ -28,22 +28,57 @@ namespace BilQalaam.Application.Services
             _roleManager = roleManager;
         }
 
-        public async Task<IEnumerable<TeacherResponseDto>> GetAllAsync()
+        public async Task<(IEnumerable<TeacherResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10)
         {
-            var teachers = await _unitOfWork
-                .Repository<Teacher>()
-                .GetAllAsync();
+            try
+            {
+                var teachers = await _unitOfWork
+                    .Repository<Teacher>()
+                    .GetAllAsync();
 
-            return _mapper.Map<IEnumerable<TeacherResponseDto>>(teachers);
+                // ??  Õ„Ì· Supervisor ··„⁄·„Ì‰
+                foreach (var teacher in teachers)
+                {
+                    if (teacher.SupervisorId.HasValue)
+                    {
+                        var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(teacher.SupervisorId.Value);
+                        teacher.Supervisor = supervisor;
+                    }
+                }
+
+                var totalCount = teachers.Count();
+                var paginatedTeachers = teachers
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize);
+
+                return (_mapper.Map<IEnumerable<TeacherResponseDto>>(paginatedTeachers), totalCount);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» «·„⁄·„Ì‰: {ex.Message}" });
+            }
         }
 
         public async Task<TeacherResponseDto?> GetByIdAsync(int id)
         {
-            var teacher = await _unitOfWork
-                .Repository<Teacher>()
-                .GetByIdAsync(id);
+            try
+            {
+                var teacher = await _unitOfWork
+                    .Repository<Teacher>()
+                    .GetByIdAsync(id);
 
-            return teacher == null ? null : _mapper.Map<TeacherResponseDto>(teacher);
+                if (teacher != null && teacher.SupervisorId.HasValue)
+                {
+                    var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(teacher.SupervisorId.Value);
+                    teacher.Supervisor = supervisor;
+                }
+
+                return teacher == null ? null : _mapper.Map<TeacherResponseDto>(teacher);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» «·„⁄·„: {ex.Message}" });
+            }
         }
 
         public async Task<int> CreateAsync(CreateTeacherDto dto, string createdByUserId)
@@ -52,7 +87,16 @@ namespace BilQalaam.Application.Services
 
             try
             {
-                // 1?? ≈‰‘«¡ «·ÌÊ“— √Ê·«
+                // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «·«Ì„Ì·
+                var existingUserByEmail = await _userManager.FindByEmailAsync(dto.Email);
+                if (existingUserByEmail != null)
+                    throw new ValidationException(new List<string> { "«·»—Ìœ «·≈·ﬂ —Ê‰Ì „” Œœ„ »«·›⁄·" });
+
+                // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «”„ «·„⁄·„
+                var teachers = await _unitOfWork.Repository<Teacher>().FindAsync(t => t.TeacherName == dto.FullName);
+                if (teachers.Any())
+                    throw new ValidationException(new List<string> { "«”„ «·„⁄·„ „” Œœ„ »«·›⁄·" });
+
                 var user = new ApplicationUser
                 {
                     UserName = dto.Email,
@@ -70,17 +114,15 @@ namespace BilQalaam.Application.Services
                     throw new ValidationException(errors);
                 }
 
-                // ≈÷«›… Role
                 const string roleName = "Teacher";
                 if (!await _roleManager.RoleExistsAsync(roleName))
                     await _roleManager.CreateAsync(new IdentityRole(roleName));
 
                 await _userManager.AddToRoleAsync(user, roleName);
 
-                // 2?? ≈‰‘«¡ «·„⁄·„ „— »ÿ »«·ÌÊ“—
                 var teacher = new Teacher
                 {
-                    TeacherName = dto.TeacherName,
+                    TeacherName = dto.FullName,
                     PhoneNumber = dto.PhoneNumber,
                     Email = dto.Email,
                     SupervisorId = dto.SupervisorId,
@@ -98,59 +140,129 @@ namespace BilQalaam.Application.Services
 
                 return teacher.Id;
             }
-            catch (Exception)
+            catch (ValidationException)
             {
                 await transaction.RollbackAsync();
                 throw;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì ≈‰‘«¡ «·„⁄·„: {ex.Message}" });
             }
         }
 
         public async Task<bool> UpdateAsync(int id, UpdateTeacherDto dto, string updatedByUserId)
         {
-            var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(id);
-            if (teacher == null) return false;
-
-            //  ÕœÌÀ »Ì«‰«  «·„⁄·„
-            teacher.TeacherName = dto.TeacherName;
-            teacher.PhoneNumber = dto.PhoneNumber;
-            teacher.SupervisorId = dto.SupervisorId;
-            teacher.HourlyRate = dto.HourlyRate;
-            teacher.Currency = dto.Currency;
-            teacher.UpdatedAt = DateTime.UtcNow;
-            teacher.UpdatedBy = updatedByUserId;
-
-            //  ÕœÌÀ »Ì«‰«  «·ÌÊ“—
-            var user = await _userManager.FindByIdAsync(teacher.UserId);
-            if (user != null)
+            try
             {
-                user.FullName = dto.FullName;
-                user.PhoneNumber = dto.PhoneNumber;
-                user.UpdatedAt = DateTime.UtcNow;
-                await _userManager.UpdateAsync(user);
+                var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(id);
+                if (teacher == null) return false;
+
+                // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «”„ «·„⁄·„ (≈–«  „  €ÌÌ—Â)
+                if (teacher.TeacherName != dto.FullName)
+                {
+                    var existingTeacher = await _unitOfWork.Repository<Teacher>()
+                        .FindAsync(t => t.TeacherName == dto.FullName && t.Id != id);
+                    if (existingTeacher.Any())
+                        throw new ValidationException(new List<string> { "«”„ «·„⁄·„ „” Œœ„ »«·›⁄·" });
+                }
+
+                teacher.TeacherName = dto.FullName;
+                teacher.PhoneNumber = dto.PhoneNumber;
+                teacher.SupervisorId = dto.SupervisorId;
+                teacher.HourlyRate = dto.HourlyRate;
+                teacher.Currency = dto.Currency;
+                teacher.UpdatedAt = DateTime.UtcNow;
+                teacher.UpdatedBy = updatedByUserId;
+
+                var user = await _userManager.FindByIdAsync(teacher.UserId);
+                if (user != null)
+                {
+                    user.FullName = dto.FullName;
+                    user.PhoneNumber = dto.PhoneNumber;
+                    user.UpdatedAt = DateTime.UtcNow;
+
+                    if (!string.IsNullOrWhiteSpace(dto.Password))
+                    {
+                        var removeResult = await _userManager.RemovePasswordAsync(user);
+                        if (!removeResult.Succeeded)
+                        {
+                            var errors = removeResult.Errors.Select(e => e.Description).ToList();
+                            throw new ValidationException(errors);
+                        }
+
+                        var addResult = await _userManager.AddPasswordAsync(user, dto.Password);
+                        if (!addResult.Succeeded)
+                        {
+                            var errors = addResult.Errors.Select(e => e.Description).ToList();
+                            throw new ValidationException(errors);
+                        }
+                    }
+
+                    await _userManager.UpdateAsync(user);
+                }
+
+                _unitOfWork.Repository<Teacher>().Update(teacher);
+                await _unitOfWork.CompleteAsync();
+
+                return true;
             }
-
-            _unitOfWork.Repository<Teacher>().Update(teacher);
-            await _unitOfWork.CompleteAsync();
-
-            return true;
+            catch (ValidationException)
+            {
+                throw;
+            }
+            catch (InvalidOperationException ex) when (ex.InnerException is Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì  ÕœÌÀ «·„⁄·„: {ex.Message}" });
+            }
         }
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(id);
-            if (teacher == null) return false;
-
-            // Õ–› «·ÌÊ“—
-            var user = await _userManager.FindByIdAsync(teacher.UserId);
-            if (user != null)
+            try
             {
-                await _userManager.DeleteAsync(user);
+                var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(id);
+                if (teacher == null) return false;
+
+                // ??? Soft Delete
+                teacher.IsDeleted = true;
+                teacher.DeletedAt = DateTime.UtcNow;
+                teacher.DeletedBy = id.ToString();
+
+                _unitOfWork.Repository<Teacher>().Update(teacher);
+                await _unitOfWork.CompleteAsync();
+
+                return true;
             }
-
-            _unitOfWork.Repository<Teacher>().Delete(teacher);
-            await _unitOfWork.CompleteAsync();
-
-            return true;
+            catch (ValidationException)
+            {
+                throw;
+            }
+            catch (InvalidOperationException ex) when (ex.InnerException is Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+            {
+                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException?.Message.Contains("FOREIGN KEY") == true)
+            {
+                throw new ValidationException(new List<string> { "·« Ì„ﬂ‰ Õ–› Â–« «·„⁄·„ ·√‰Â „— »ÿ »»Ì«‰«  √Œ—Ï." });
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Õ–› «·„⁄·„: {ex.Message}" });
+            }
         }
     }
 }

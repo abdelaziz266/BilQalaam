@@ -1,8 +1,9 @@
-using AutoMapper;
+﻿using AutoMapper;
 using BilQalaam.Application.DTOs.Supervisors;
 using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
 using BilQalaam.Application.UnitOfWork;
+using BilQalaam.Application.Results;
 using BilQalaam.Domain.Entities;
 using BilQalaam.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
@@ -28,38 +29,66 @@ namespace BilQalaam.Application.Services
             _roleManager = roleManager;
         }
 
-        public async Task<IEnumerable<SupervisorResponseDto>> GetAllAsync()
+        public async Task<(IEnumerable<SupervisorResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10)
         {
-            var supervisors = await _unitOfWork
-                .Repository<Supervisor>()
-                .GetAllAsync();
+            try
+            {
+                var supervisors = await _unitOfWork
+                    .Repository<Supervisor>()
+                    .GetAllAsync();
 
-            return _mapper.Map<IEnumerable<SupervisorResponseDto>>(supervisors);
+                var totalCount = supervisors.Count();
+                var paginatedSupervisors = supervisors
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize);
+
+                return (_mapper.Map<IEnumerable<SupervisorResponseDto>>(paginatedSupervisors), totalCount);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب المشرفين: {ex.Message}" });
+            }
         }
 
         public async Task<SupervisorResponseDto?> GetByIdAsync(int id)
         {
-            var supervisor = await _unitOfWork
-                .Repository<Supervisor>()
-                .GetByIdAsync(id);
+            try
+            {
+                var supervisor = await _unitOfWork
+                    .Repository<Supervisor>()
+                    .GetByIdAsync(id);
 
-            return supervisor == null ? null : _mapper.Map<SupervisorResponseDto>(supervisor);
+                return supervisor == null ? null : _mapper.Map<SupervisorResponseDto>(supervisor);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب المشرف: {ex.Message}" });
+            }
         }
 
-        public async Task<int> CreateAsync(CreateSupervisorDto dto, string createdByUserId)
+        public async Task<Result<int>> CreateAsync(CreateSupervisorDto dto, string createdByUserId)
         {
             using var transaction = await _unitOfWork.BeginTransactionAsync();
 
             try
             {
-                // 1?? ����� ������ �����
+                // التحقق من عدم تكرار الايميل
+                var existingUserByEmail = await _userManager.FindByEmailAsync(dto.Email);
+                if (existingUserByEmail != null)
+                    return Result<int>.Failure(new List<string> { "البريد الإلكتروني مستخدم بالفعل" });
+
+                // التحقق من عدم تكرار اسم المشرف
+                var supervisors = await _unitOfWork.Repository<Supervisor>().FindAsync(s => s.SupervisorName == dto.FullName);
+                if (supervisors.Any())
+                    return Result<int>.Failure(new List<string> { "اسم المشرف مستخدم بالفعل" });
+
                 var user = new ApplicationUser
                 {
                     UserName = dto.Email,
                     Email = dto.Email,
                     PhoneNumber = dto.PhoneNumber,
                     FullName = dto.FullName,
-                    Role = UserRole.Admin, // ?? ������ ���� Admin
+                    Role = UserRole.Admin,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -67,17 +96,15 @@ namespace BilQalaam.Application.Services
                 if (!result.Succeeded)
                 {
                     var errors = result.Errors.Select(e => e.Description).ToList();
-                    throw new ValidationException(errors);
+                    return Result<int>.Failure(errors);
                 }
 
-                // ����� Role
                 const string roleName = "Admin";
                 if (!await _roleManager.RoleExistsAsync(roleName))
                     await _roleManager.CreateAsync(new IdentityRole(roleName));
 
                 await _userManager.AddToRoleAsync(user, roleName);
 
-                // 2?? ����� ������ ����� �������
                 var supervisor = new Supervisor
                 {
                     SupervisorName = dto.FullName,
@@ -95,60 +122,100 @@ namespace BilQalaam.Application.Services
 
                 await transaction.CommitAsync();
 
-                return supervisor.Id;
+                return Result<int>.Success(supervisor.Id);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                throw;
+                return Result<int>.Failure(new List<string> { $"خطأ في إنشاء المشرف: {ex.Message}" });
             }
         }
 
-        public async Task<bool> UpdateAsync(int id, UpdateSupervisorDto dto, string updatedByUserId)
+        public async Task<Result<bool>> UpdateAsync(int id, UpdateSupervisorDto dto, string updatedByUserId)
         {
-            var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(id);
-            if (supervisor == null) return false;
-
-            // ����� ������ ������
-            supervisor.SupervisorName = dto.SupervisorName;
-            supervisor.PhoneNumber = dto.PhoneNumber;
-            supervisor.HourlyRate = dto.HourlyRate;
-            supervisor.Currency = dto.Currency;
-            supervisor.UpdatedAt = DateTime.UtcNow;
-            supervisor.UpdatedBy = updatedByUserId;
-
-            // ����� ������ ������
-            var user = await _userManager.FindByIdAsync(supervisor.UserId);
-            if (user != null)
+            try
             {
-                user.FullName = dto.FullName;
-                user.PhoneNumber = dto.PhoneNumber;
-                user.UpdatedAt = DateTime.UtcNow;
-                await _userManager.UpdateAsync(user);
+                var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(id);
+                if (supervisor == null)
+                    return Result<bool>.Failure(new List<string> { "المشرف غير موجود" });
+
+                // التحقق من عدم تكرار اسم المشرف (إذا تم تغييره)
+                if (supervisor.SupervisorName != dto.FullName)
+                {
+                    var existingSupervisor = await _unitOfWork.Repository<Supervisor>()
+                        .FindAsync(s => s.SupervisorName == dto.FullName && s.Id != id);
+                    if (existingSupervisor.Any())
+                        return Result<bool>.Failure(new List<string> { "اسم المشرف مستخدم بالفعل" });
+                }
+
+                supervisor.SupervisorName = dto.FullName;
+                supervisor.PhoneNumber = dto.PhoneNumber;
+                supervisor.HourlyRate = dto.HourlyRate;
+                supervisor.Currency = dto.Currency;
+                supervisor.UpdatedAt = DateTime.UtcNow;
+                supervisor.UpdatedBy = updatedByUserId;
+
+                var user = await _userManager.FindByIdAsync(supervisor.UserId);
+                if (user != null)
+                {
+                    user.FullName = dto.FullName;
+                    user.PhoneNumber = dto.PhoneNumber;
+                    user.UpdatedAt = DateTime.UtcNow;
+
+                    // تحديث كلمة المرور إذا تم توفيرها
+                    if (!string.IsNullOrWhiteSpace(dto.Password))
+                    {
+                        var removeResult = await _userManager.RemovePasswordAsync(user);
+                        if (!removeResult.Succeeded)
+                        {
+                            var errors = removeResult.Errors.Select(e => e.Description).ToList();
+                            return Result<bool>.Failure(errors);
+                        }
+
+                        var addResult = await _userManager.AddPasswordAsync(user, dto.Password);
+                        if (!addResult.Succeeded)
+                        {
+                            var errors = addResult.Errors.Select(e => e.Description).ToList();
+                            return Result<bool>.Failure(errors);
+                        }
+                    }
+
+                    await _userManager.UpdateAsync(user);
+                }
+
+                _unitOfWork.Repository<Supervisor>().Update(supervisor);
+                await _unitOfWork.CompleteAsync();
+
+                return Result<bool>.Success(true);
             }
-
-            _unitOfWork.Repository<Supervisor>().Update(supervisor);
-            await _unitOfWork.CompleteAsync();
-
-            return true;
+            catch (Exception ex)
+            {
+                return Result<bool>.Failure(new List<string> { $"خطأ في تحديث المشرف: {ex.Message}" });
+            }
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<Result<bool>> DeleteAsync(int id)
         {
-            var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(id);
-            if (supervisor == null) return false;
-
-            // ��� ������
-            var user = await _userManager.FindByIdAsync(supervisor.UserId);
-            if (user != null)
+            try
             {
-                await _userManager.DeleteAsync(user);
+                var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(id);
+                if (supervisor == null)
+                    return Result<bool>.Failure(new List<string> { "المشرف غير موجود" });
+
+                // 🗑️ Soft Delete - تحديث العلامات بدل الحذف الفعلي
+                supervisor.IsDeleted = true;
+                supervisor.DeletedAt = DateTime.UtcNow;
+                supervisor.DeletedBy = id.ToString();
+
+                _unitOfWork.Repository<Supervisor>().Update(supervisor);
+                await _unitOfWork.CompleteAsync();
+
+                return Result<bool>.Success(true);
             }
-
-            _unitOfWork.Repository<Supervisor>().Delete(supervisor);
-            await _unitOfWork.CompleteAsync();
-
-            return true;
+            catch (Exception ex)
+            {
+                return Result<bool>.Failure(new List<string> { $"خطأ في حذف المشرف: {ex.Message}" });
+            }
         }
     }
 }

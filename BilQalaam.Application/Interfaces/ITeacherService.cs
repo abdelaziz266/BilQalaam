@@ -4,7 +4,7 @@ namespace BilQalaam.Application.Interfaces
 {
     public interface ITeacherService
     {
-        Task<IEnumerable<TeacherResponseDto>> GetAllAsync();
+        Task<(IEnumerable<TeacherResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10);
         Task<TeacherResponseDto?> GetByIdAsync(int id);
         Task<int> CreateAsync(CreateTeacherDto dto, string createdByUserId);
         Task<bool> UpdateAsync(int id, UpdateTeacherDto dto, string updatedByUserId);

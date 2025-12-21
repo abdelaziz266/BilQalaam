@@ -1,5 +1,6 @@
 ﻿using BilQalaam.Application.Repositories.Interfaces;
 using BilQalaam.Infrastructure.Persistence;
+using BilQalaam.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
@@ -17,13 +18,45 @@ namespace BilQalaam.Infrastructure.Repositories.Implementations
         }
 
         public async Task<IEnumerable<T>> GetAllAsync()
-            => await _dbSet.AsNoTracking().ToListAsync();
+        {
+            var query = _dbSet.AsNoTracking();
+            
+            // تصفية البيانات المحذوفة إذا كانت Entity ترث من Base
+            if (typeof(Base).IsAssignableFrom(typeof(T)))
+            {
+                query = query.Where(x => !((Base)(object)x).IsDeleted);
+            }
+            
+            return await query.ToListAsync();
+        }
 
         public async Task<T?> GetByIdAsync(object id)
-            => await _dbSet.FindAsync(id);
+        {
+            var entity = await _dbSet.FindAsync(id);
+            
+            // التحقق من أن الـ entity لم يتم حذفه
+            if (entity != null && typeof(Base).IsAssignableFrom(typeof(T)))
+            {
+                var baseEntity = (Base)(object)entity;
+                if (baseEntity.IsDeleted)
+                    return null;
+            }
+            
+            return entity;
+        }
 
         public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate)
-            => await _dbSet.Where(predicate).AsNoTracking().ToListAsync();
+        {
+            var query = _dbSet.Where(predicate).AsNoTracking();
+            
+            // تصفية البيانات المحذوفة إذا كانت Entity ترث من Base
+            if (typeof(Base).IsAssignableFrom(typeof(T)))
+            {
+                query = query.Where(x => !((Base)(object)x).IsDeleted);
+            }
+            
+            return await query.ToListAsync();
+        }
 
         public async Task AddAsync(T entity)
             => await _dbSet.AddAsync(entity);

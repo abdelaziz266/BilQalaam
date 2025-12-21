@@ -18,144 +18,222 @@ namespace BilQalaam.Application.Services
             _mapper = mapper;
         }
 
-        public async Task<IEnumerable<LessonResponseDto>> GetAllAsync()
+        public async Task<(IEnumerable<LessonResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10)
         {
-            var lessons = await _unitOfWork
-                .Repository<Lesson>()
-                .GetAllAsync();
+            try
+            {
+                var lessons = await _unitOfWork
+                    .Repository<Lesson>()
+                    .GetAllAsync();
 
-            return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
+                var totalCount = lessons.Count();
+                var paginatedLessons = lessons
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize);
+
+                return (_mapper.Map<IEnumerable<LessonResponseDto>>(paginatedLessons), totalCount);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب الدروس: {ex.Message}" });
+            }
         }
 
         public async Task<LessonResponseDto?> GetByIdAsync(int id)
         {
-            var lesson = await _unitOfWork
-                .Repository<Lesson>()
-                .GetByIdAsync(id);
+            try
+            {
+                var lesson = await _unitOfWork
+                    .Repository<Lesson>()
+                    .GetByIdAsync(id);
 
-            return lesson == null ? null : _mapper.Map<LessonResponseDto>(lesson);
+                return lesson == null ? null : _mapper.Map<LessonResponseDto>(lesson);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب الدرس: {ex.Message}" });
+            }
         }
 
-        public async Task<IEnumerable<LessonResponseDto>> GetByTeacherIdAsync(int teacherId)
+        public async Task<(IEnumerable<LessonResponseDto>, int)> GetByTeacherIdAsync(int teacherId, int pageNumber = 1, int pageSize = 10)
         {
-            var lessons = await _unitOfWork
-                .Repository<Lesson>()
-                .FindAsync(l => l.TeacherId == teacherId);
+            try
+            {
+                var lessons = await _unitOfWork
+                    .Repository<Lesson>()
+                    .FindAsync(l => l.TeacherId == teacherId);
 
-            return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
+                var totalCount = lessons.Count();
+                var paginatedLessons = lessons
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize);
+
+                return (_mapper.Map<IEnumerable<LessonResponseDto>>(paginatedLessons), totalCount);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب دروس المعلم: {ex.Message}" });
+            }
         }
 
         public async Task<IEnumerable<LessonResponseDto>> GetByFamilyIdAsync(int familyId)
         {
-            var lessons = await _unitOfWork
-                .Repository<Lesson>()
-                .FindAsync(l => l.FamilyId == familyId);
+            try
+            {
+                var lessons = await _unitOfWork
+                    .Repository<Lesson>()
+                    .FindAsync(l => l.FamilyId == familyId);
 
-            return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
+                return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب دروس العائلة: {ex.Message}" });
+            }
         }
 
         public async Task<IEnumerable<LessonResponseDto>> GetByStudentIdAsync(int studentId)
         {
-            var lessons = await _unitOfWork
-                .Repository<Lesson>()
-                .FindAsync(l => l.StudentId == studentId);
+            try
+            {
+                var lessons = await _unitOfWork
+                    .Repository<Lesson>()
+                    .FindAsync(l => l.StudentId == studentId);
 
-            return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
+                return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب دروس الطالب: {ex.Message}" });
+            }
         }
 
         public async Task<IEnumerable<LessonResponseDto>> GetByDateRangeAsync(DateTime fromDate, DateTime toDate)
         {
-            var lessons = await _unitOfWork
-                .Repository<Lesson>()
-                .FindAsync(l => l.LessonDate >= fromDate && l.LessonDate <= toDate);
+            try
+            {
+                var lessons = await _unitOfWork
+                    .Repository<Lesson>()
+                    .FindAsync(l => l.LessonDate >= fromDate && l.LessonDate <= toDate);
 
-            return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
+                return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب الدروس حسب التاريخ: {ex.Message}" });
+            }
         }
 
         public async Task<int> CreateAsync(CreateLessonDto dto, int teacherId, string createdByUserId)
         {
-            // جلب بيانات الطالب
-            var student = await _unitOfWork.Repository<Student>().GetByIdAsync(dto.StudentId);
-            if (student == null)
-                throw new ValidationException(new List<string> { "الطالب غير موجود" });
-
-            // التحقق أن المعلم هو معلم هذا الطالب
-            if (student.TeacherId != teacherId)
-                throw new ValidationException(new List<string> { "هذا الطالب ليس من طلابك" });
-
-            // جلب بيانات المعلم
-            var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
-            if (teacher == null)
-                throw new ValidationException(new List<string> { "المعلم غير موجود" });
-
-            var lesson = new Lesson
+            try
             {
-                StudentId = dto.StudentId,
-                TeacherId = teacherId,
-                FamilyId = student.FamilyId,
-                LessonDate = dto.LessonDate,
-                DurationMinutes = dto.DurationMinutes,
-                Notes = dto.Notes,
-                Evaluation = dto.Evaluation,
-                StudentHourlyRate = student.HourlyRate,
-                TeacherHourlyRate = teacher.HourlyRate,
-                Currency = student.Currency,
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = createdByUserId
-            };
+                var student = await _unitOfWork.Repository<Student>().GetByIdAsync(dto.StudentId);
+                if (student == null)
+                    throw new ValidationException(new List<string> { "الطالب غير موجود" });
 
-            await _unitOfWork.Repository<Lesson>().AddAsync(lesson);
-            await _unitOfWork.CompleteAsync();
+                if (student.TeacherId != teacherId)
+                    throw new ValidationException(new List<string> { "هذا الطالب ليس من طلابك" });
 
-            return lesson.Id;
+                var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
+                if (teacher == null)
+                    throw new ValidationException(new List<string> { "المعلم غير موجود" });
+
+                var lesson = new Lesson
+                {
+                    StudentId = dto.StudentId,
+                    TeacherId = teacherId,
+                    FamilyId = student.FamilyId,
+                    LessonDate = dto.LessonDate,
+                    DurationMinutes = dto.DurationMinutes,
+                    Notes = dto.Notes,
+                    Evaluation = dto.Evaluation,
+                    StudentHourlyRate = student.HourlyRate,
+                    TeacherHourlyRate = teacher.HourlyRate,
+                    Currency = student.Currency,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = createdByUserId
+                };
+
+                await _unitOfWork.Repository<Lesson>().AddAsync(lesson);
+                await _unitOfWork.CompleteAsync();
+
+                return lesson.Id;
+            }
+            catch (ValidationException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في إنشاء الدرس: {ex.Message}" });
+            }
         }
 
         public async Task<bool> UpdateAsync(int id, UpdateLessonDto dto, string updatedByUserId)
         {
-            var lesson = await _unitOfWork.Repository<Lesson>().GetByIdAsync(id);
-            if (lesson == null) return false;
-
-            // لو عاوز يغير الطالب
-            if (dto.StudentId.HasValue && dto.StudentId.Value != lesson.StudentId)
+            try
             {
-                var student = await _unitOfWork.Repository<Student>().GetByIdAsync(dto.StudentId.Value);
-                if (student == null) return false;
+                var lesson = await _unitOfWork.Repository<Lesson>().GetByIdAsync(id);
+                if (lesson == null) return false;
 
-                lesson.StudentId = dto.StudentId.Value;
-                lesson.FamilyId = student.FamilyId;
-                lesson.StudentHourlyRate = student.HourlyRate;
+                if (dto.StudentId.HasValue && dto.StudentId.Value != lesson.StudentId)
+                {
+                    var student = await _unitOfWork.Repository<Student>().GetByIdAsync(dto.StudentId.Value);
+                    if (student == null) return false;
+
+                    lesson.StudentId = dto.StudentId.Value;
+                    lesson.FamilyId = student.FamilyId;
+                    lesson.StudentHourlyRate = student.HourlyRate;
+                }
+
+                if (dto.LessonDate.HasValue)
+                    lesson.LessonDate = dto.LessonDate.Value;
+
+                if (dto.DurationMinutes.HasValue)
+                    lesson.DurationMinutes = dto.DurationMinutes.Value;
+
+                if (dto.Notes != null)
+                    lesson.Notes = dto.Notes;
+
+                if (dto.Evaluation.HasValue)
+                    lesson.Evaluation = dto.Evaluation.Value;
+
+                lesson.UpdatedAt = DateTime.UtcNow;
+                lesson.UpdatedBy = updatedByUserId;
+
+                _unitOfWork.Repository<Lesson>().Update(lesson);
+                await _unitOfWork.CompleteAsync();
+
+                return true;
             }
-
-            if (dto.LessonDate.HasValue)
-                lesson.LessonDate = dto.LessonDate.Value;
-
-            if (dto.DurationMinutes.HasValue)
-                lesson.DurationMinutes = dto.DurationMinutes.Value;
-
-            if (dto.Notes != null)
-                lesson.Notes = dto.Notes;
-
-            if (dto.Evaluation.HasValue)
-                lesson.Evaluation = dto.Evaluation.Value;
-
-            lesson.UpdatedAt = DateTime.UtcNow;
-            lesson.UpdatedBy = updatedByUserId;
-
-            _unitOfWork.Repository<Lesson>().Update(lesson);
-            await _unitOfWork.CompleteAsync();
-
-            return true;
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في تحديث الدرس: {ex.Message}" });
+            }
         }
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var lesson = await _unitOfWork.Repository<Lesson>().GetByIdAsync(id);
-            if (lesson == null) return false;
+            try
+            {
+                var lesson = await _unitOfWork.Repository<Lesson>().GetByIdAsync(id);
+                if (lesson == null) return false;
 
-            _unitOfWork.Repository<Lesson>().Delete(lesson);
-            await _unitOfWork.CompleteAsync();
+                // 🗑️ Soft Delete
+                lesson.IsDeleted = true;
+                lesson.DeletedAt = DateTime.UtcNow;
+                lesson.DeletedBy = id.ToString();
 
-            return true;
+                _unitOfWork.Repository<Lesson>().Update(lesson);
+                await _unitOfWork.CompleteAsync();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في حذف الدرس: {ex.Message}" });
+            }
         }
     }
 }

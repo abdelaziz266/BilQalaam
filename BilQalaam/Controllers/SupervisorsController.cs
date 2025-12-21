@@ -27,26 +27,50 @@ namespace BilQalaam.Api.Controllers
                 ?? throw new UnauthorizedAccessException("User not authenticated");
         }
 
-        // ? GET: api/Supervisors
-        [HttpGet]
-        public async Task<IActionResult> GetAll()
+        // ? GET: api/Supervisors/get
+        [HttpGet("get")]
+        public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {
-            var supervisors = await _supervisorService.GetAllAsync();
-            return Ok(ApiResponseDto<IEnumerable<SupervisorResponseDto>>.Success(supervisors, "Supervisors retrieved successfully"));
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            var (supervisors, totalCount) = await _supervisorService.GetAllAsync(pageNumber, pageSize);
+            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            var paginatedResponse = new PaginatedResponseDto<SupervisorResponseDto>
+            {
+                Items = supervisors,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                PagesCount = pagesCount
+            };
+
+            return Ok(ApiResponseDto<PaginatedResponseDto<SupervisorResponseDto>>.Success(
+                paginatedResponse,
+                " „ «” —Ã«⁄ «·„‘—›Ì‰ »‰Ã«Õ"
+            ));
         }
 
-        // ? GET: api/Supervisors/{id}
-        [HttpGet("{id}")]
+        // ? GET: api/Supervisors/get/{id}
+        [HttpGet("get/{id}")]
         public async Task<IActionResult> GetById(int id)
         {
             var supervisor = await _supervisorService.GetByIdAsync(id);
             return supervisor == null
-                ? NotFound(ApiResponseDto<SupervisorResponseDto>.Fail(new List<string> { "Supervisor not found" }, "Not found", 404))
-                : Ok(ApiResponseDto<SupervisorResponseDto>.Success(supervisor, "Supervisor retrieved successfully"));
+                ? NotFound(ApiResponseDto<SupervisorResponseDto>.Fail(
+                    new List<string> { "«·„‘—› €Ì— „ÊÃÊœ" },
+                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
+                    404
+                ))
+                : Ok(ApiResponseDto<SupervisorResponseDto>.Success(
+                    supervisor,
+                    " „ «” —Ã«⁄ «·„‘—› »‰Ã«Õ"
+                ));
         }
 
-        // ? POST: api/Supervisors
-        [HttpPost]
+        // ? POST: api/Supervisors/create
+        [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreateSupervisorDto dto)
         {
             if (!ModelState.IsValid)
@@ -56,23 +80,20 @@ namespace BilQalaam.Api.Controllers
                     .Select(e => e.ErrorMessage)
                     .ToList();
 
-                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
 
-            try
-            {
-                var currentUserId = GetCurrentUserId();
-                var id = await _supervisorService.CreateAsync(dto, currentUserId);
-                return Ok(ApiResponseDto<int>.Success(id, "Supervisor created successfully", 201));
-            }
-            catch (ValidationException ex)
-            {
-                return BadRequest(ApiResponseDto<int>.Fail(ex.Errors, "Validation failed", 400));
-            }
+            var currentUserId = GetCurrentUserId();
+            var result = await _supervisorService.CreateAsync(dto, currentUserId);
+            
+            if (!result.IsSuccess)
+                return BadRequest(ApiResponseDto<int>.Fail(result.Errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
+
+            return Ok(ApiResponseDto<int>.Success(result.Data, " „ ≈‰‘«¡ «·„‘—› »‰Ã«Õ", 201));
         }
 
-        // ? PUT: api/Supervisors/{id}
-        [HttpPut("{id}")]
+        // ? PUT: api/Supervisors/update/{id}
+        [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateSupervisorDto dto)
         {
             if (!ModelState.IsValid)
@@ -82,24 +103,28 @@ namespace BilQalaam.Api.Controllers
                     .Select(e => e.ErrorMessage)
                     .ToList();
 
-                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "Validation failed", 400));
+                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
 
             var currentUserId = GetCurrentUserId();
-            var success = await _supervisorService.UpdateAsync(id, dto, currentUserId);
-            return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Supervisor updated successfully"))
-                : NotFound(ApiResponseDto<bool>.Fail(new List<string> { "Supervisor not found" }, "Not found", 404));
+            var result = await _supervisorService.UpdateAsync(id, dto, currentUserId);
+            
+            if (!result.IsSuccess)
+                return BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
+
+            return Ok(ApiResponseDto<bool>.Success(result.Data, " „  ÕœÌÀ «·„‘—› »‰Ã«Õ"));
         }
 
-        // ? DELETE: api/Supervisors/{id}
-        [HttpDelete("{id}")]
+        // ? DELETE: api/Supervisors/delete/{id}
+        [HttpDelete("delete/{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var success = await _supervisorService.DeleteAsync(id);
-            return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Supervisor deleted successfully"))
-                : NotFound(ApiResponseDto<bool>.Fail(new List<string> { "Supervisor not found" }, "Not found", 404));
+            var result = await _supervisorService.DeleteAsync(id);
+            
+            if (!result.IsSuccess)
+                return BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
+
+            return Ok(ApiResponseDto<bool>.Success(result.Data, " „ Õ–› «·„‘—› »‰Ã«Õ"));
         }
     }
 }
