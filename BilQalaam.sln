@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.13.35931.197
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BilQalaam.Api", "BilQalaam\BilQalaam.Api.csproj", "{71B84933-9D21-445B-9835-0DF94D8BCD16}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BilQalaam", "BilQalaam\BilQalaam.csproj", "{71B84933-9D21-445B-9835-0DF94D8BCD16}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BilQalaam.Application", "BilQalaam.Application\BilQalaam.Application.csproj", "{CEC96690-B6B8-4D35-A4B7-CE10CBB3E8B4}"
 EndProject
