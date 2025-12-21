@@ -11,6 +11,9 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 🔥 Railway PORT binding (مهم جدًا)
+builder.WebHost.UseUrls($"http://0.0.0.0:{Environment.GetEnvironmentVariable("PORT") ?? "8080"}");
+
 // =====================
 // Infrastructure
 // =====================
@@ -58,7 +61,7 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"],
 
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)
+            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "TEMP_KEY_CHANGE_ME")
         )
     };
 });
@@ -70,22 +73,21 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
 // =====================
-// CORS 🔥 (حل OPTIONS 405)
+// CORS
 // =====================
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAngular",
-        policy =>
-        {
-            policy
-                .AllowAnyOrigin()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        });
+    options.AddPolicy("AllowAngular", policy =>
+    {
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
 });
 
 // =====================
-// Swagger + JWT 🔒
+// Swagger
 // =====================
 builder.Services.AddSwaggerGen(c =>
 {
@@ -101,8 +103,7 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.Http,
         Scheme = "Bearer",
         BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter: Bearer {your JWT token}"
+        In = ParameterLocation.Header
     });
 
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -124,58 +125,21 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // =====================
-// Auto Apply Migrations + Seed
+// ❌ تعطيل Migration + Seed مؤقتًا
+// (هنرجعهم بعد إضافة DB على Railway)
 // =====================
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<BilQalaamDbContext>();
-    dbContext.Database.Migrate();
-
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-
-    const string superAdminEmail = "superadmin@bilqalaam.com";
-    const string superAdminPassword = "Aa@12345#";
-    const string superAdminRole = "SuperAdmin";
-
-    if (!await roleManager.RoleExistsAsync(superAdminRole))
-    {
-        await roleManager.CreateAsync(new IdentityRole(superAdminRole));
-    }
-
-    var superAdminUser = await userManager.FindByEmailAsync(superAdminEmail);
-    if (superAdminUser == null)
-    {
-        superAdminUser = new ApplicationUser
-        {
-            UserName = superAdminEmail,
-            Email = superAdminEmail,
-            FullName = "Super Admin",
-            Role = BilQalaam.Domain.Enums.UserRole.SuperAdmin,
-            EmailConfirmed = true,
-            PhoneNumber = "0000000000"
-        };
-
-        var result = await userManager.CreateAsync(superAdminUser, superAdminPassword);
-        if (result.Succeeded)
-        {
-            await userManager.AddToRoleAsync(superAdminUser, superAdminRole);
-        }
-    }
-}
 
 // =====================
 // Middleware
 // =====================
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
 
-app.UseHttpsRedirection();
+// 🔥 Swagger شغال في Production
+app.UseSwagger();
+app.UseSwaggerUI();
 
-// 🔥 CORS لازم قبل Auth
+// ❌ Railway لا يدعم HTTPS redirect
+// app.UseHttpsRedirection();
+
 app.UseCors("AllowAngular");
 
 app.UseAuthentication();
