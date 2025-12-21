@@ -19,12 +19,16 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{Environment.GetEnvironmentVariable("PO
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddAutoMapper(typeof(UserProfile).Assembly);
 
+//builder.Services.AddDbContext<BilQalaamDbContext>(options =>
+//    options.UseSqlServer(
+//        builder.Configuration.GetConnectionString("DefaultConnection")
+//    )
+//);
 builder.Services.AddDbContext<BilQalaamDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
-);
-
+{
+    var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+    options.UseNpgsql(connectionString);
+});
 // =====================
 // Identity
 // =====================
