@@ -4,24 +4,23 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy solution
-COPY *.sln .
+# copy solution
+COPY BilQalaam.sln .
 
-# Copy all project files
-COPY BilQalaam.Api/*.csproj BilQalaam.Api/
-COPY BilQalaam.Application/*.csproj BilQalaam.Application/
-COPY BilQalaam.Domain/*.csproj BilQalaam.Domain/
-COPY BilQalaam.Infrastructure/*.csproj BilQalaam.Infrastructure/
+# copy csproj files
+COPY BilQalaam/BilQalaam.csproj BilQalaam/
+COPY BilQalaam.Application/BilQalaam.Application.csproj BilQalaam.Application/
+COPY BilQalaam.Domain/BilQalaam.Domain.csproj BilQalaam.Domain/
+COPY BilQalaam.Infrastructure/BilQalaam.Infrastructure.csproj BilQalaam.Infrastructure/
 
-# Restore
+# restore
 RUN dotnet restore
 
-# Copy everything else
+# copy everything
 COPY . .
 
-# Publish API
-WORKDIR /src/BilQalaam.Api
-RUN dotnet publish -c Release -o /app/publish
+# build & publish
+RUN dotnet publish BilQalaam/BilQalaam.csproj -c Release -o /app/publish
 
 # ===============================
 # Runtime Stage
@@ -30,7 +29,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/publish .
 
-ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
 
-ENTRYPOINT ["dotnet", "BilQalaam.Api.dll"]
+ENTRYPOINT ["dotnet", "BilQalaam.dll"]
