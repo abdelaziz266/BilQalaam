@@ -174,7 +174,6 @@ app.MapGet("/", () => "BilQalaam API is running 🚀");
     app.UseSwagger();
     app.UseSwaggerUI();
 
-app.UseHttpsRedirection();
 
 // 🔥 CORS لازم قبل Auth
 app.UseCors("AllowAngular");
