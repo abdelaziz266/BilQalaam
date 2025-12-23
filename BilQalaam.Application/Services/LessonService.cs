@@ -34,7 +34,11 @@ namespace BilQalaam.Application.Services
         {
             IQueryable<Lesson> query = _unitOfWork
                 .Repository<Lesson>()
-                .Query(); 
+                .Query()
+                .Include(l => l.Student)
+                .Include(l => l.Teacher)
+                .Include(l => l.Supervisor)
+                .Include(l => l.Family); 
 
             if (supervisorIds?.Any() == true)
                 query = query.Where(l => l.SupervisorId.HasValue && supervisorIds.Contains(l.SupervisorId.Value));
@@ -80,7 +84,12 @@ namespace BilQalaam.Application.Services
             {
                 var lesson = await _unitOfWork
                     .Repository<Lesson>()
-                    .GetByIdAsync(id);
+                    .Query()
+                    .Include(l => l.Student)
+                    .Include(l => l.Teacher)
+                    .Include(l => l.Supervisor)
+                    .Include(l => l.Family)
+                    .FirstOrDefaultAsync(l => l.Id == id);
 
                 return lesson == null ? null : _mapper.Map<LessonResponseDto>(lesson);
             }
@@ -96,7 +105,13 @@ namespace BilQalaam.Application.Services
             {
                 var lessons = await _unitOfWork
                     .Repository<Lesson>()
-                    .FindAsync(l => l.TeacherId == teacherId);
+                    .Query()
+                    .Include(l => l.Student)
+                    .Include(l => l.Teacher)
+                    .Include(l => l.Supervisor)
+                    .Include(l => l.Family)
+                    .Where(l => l.TeacherId == teacherId)
+                    .ToListAsync();
 
                 var totalCount = lessons.Count();
                 var paginatedLessons = lessons
@@ -121,7 +136,13 @@ namespace BilQalaam.Application.Services
 
                 var lessons = await _unitOfWork
                     .Repository<Lesson>()
-                    .FindAsync(l => teacherIdSet.Contains(l.TeacherId));
+                    .Query()
+                    .Include(l => l.Student)
+                    .Include(l => l.Teacher)
+                    .Include(l => l.Supervisor)
+                    .Include(l => l.Family)
+                    .Where(l => teacherIdSet.Contains(l.TeacherId))
+                    .ToListAsync();
 
                 var totalCount = lessons.Count();
                 var paginatedLessons = lessons
@@ -142,7 +163,13 @@ namespace BilQalaam.Application.Services
             {
                 var lessons = await _unitOfWork
                     .Repository<Lesson>()
-                    .FindAsync(l => l.FamilyId == familyId);
+                    .Query()
+                    .Include(l => l.Student)
+                    .Include(l => l.Teacher)
+                    .Include(l => l.Supervisor)
+                    .Include(l => l.Family)
+                    .Where(l => l.FamilyId == familyId)
+                    .ToListAsync();
 
                 return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
             }
@@ -158,7 +185,13 @@ namespace BilQalaam.Application.Services
             {
                 var lessons = await _unitOfWork
                     .Repository<Lesson>()
-                    .FindAsync(l => l.StudentId == studentId);
+                    .Query()
+                    .Include(l => l.Student)
+                    .Include(l => l.Teacher)
+                    .Include(l => l.Supervisor)
+                    .Include(l => l.Family)
+                    .Where(l => l.StudentId == studentId)
+                    .ToListAsync();
 
                 return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
             }
@@ -174,7 +207,13 @@ namespace BilQalaam.Application.Services
             {
                 var lessons = await _unitOfWork
                     .Repository<Lesson>()
-                    .FindAsync(l => l.LessonDate >= fromDate && l.LessonDate <= toDate);
+                    .Query()
+                    .Include(l => l.Student)
+                    .Include(l => l.Teacher)
+                    .Include(l => l.Supervisor)
+                    .Include(l => l.Family)
+                    .Where(l => l.LessonDate >= fromDate && l.LessonDate <= toDate)
+                    .ToListAsync();
 
                 return _mapper.Map<IEnumerable<LessonResponseDto>>(lessons);
             }
@@ -204,7 +243,7 @@ namespace BilQalaam.Application.Services
                     StudentId = dto.StudentId,
                     TeacherId = teacherId,
                     SupervisorId = supervisorId,
-                    FamilyId = student.FamilyId,
+                    FamilyId = student.FamilyId??0,
                     LessonDate = dto.LessonDate,
                     DurationMinutes = dto.DurationMinutes,
                     Notes = dto.Notes,
@@ -248,7 +287,7 @@ namespace BilQalaam.Application.Services
                     throw new ValidationException(new List<string> { "المعلم غير موجود" });
 
                 lesson.StudentId = student.Id;
-                lesson.FamilyId = student.FamilyId;
+                lesson.FamilyId = student.FamilyId ?? 0;
                 lesson.StudentHourlyRate = student.HourlyRate;
                 lesson.Currency = student.Currency;
 

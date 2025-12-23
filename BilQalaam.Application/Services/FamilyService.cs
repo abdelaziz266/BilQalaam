@@ -7,6 +7,7 @@ using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
 using BilQalaam.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace BilQalaam.Application.Services
 {
@@ -79,6 +80,35 @@ namespace BilQalaam.Application.Services
             catch (Exception ex)
             {
                 throw new ValidationException(new List<string> { $"خطأ في جلب العائلة: {ex.Message}" });
+            }
+        }
+
+        public async Task<(IEnumerable<FamilyResponseDto>, int)> GetBySupervisorIdsAsync(
+    IEnumerable<int> supervisorIds,
+    int pageNumber,
+    int pageSize)
+        {
+            try
+            {
+                var query = _unitOfWork
+                    .Repository<Family>()
+                    .Query()
+                    .Include(f => f.Supervisor)
+                    .Where(f => f.SupervisorId.HasValue &&
+                                supervisorIds.Contains(f.SupervisorId.Value));
+
+                var totalCount = await query.CountAsync();
+
+                var families = await query
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                return (_mapper.Map<IEnumerable<FamilyResponseDto>>(families), totalCount);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب عائلات المشرفين: {ex.Message}" });
             }
         }
 

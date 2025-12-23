@@ -10,5 +10,9 @@ namespace BilQalaam.Application.Interfaces
         Task<Result<int>> CreateAsync(CreateFamilyDto dto, string createdByUserId);
         Task<Result<bool>> UpdateAsync(int id, UpdateFamilyDto dto, string updatedByUserId);
         Task<Result<bool>> DeleteAsync(int id);
+        Task<(IEnumerable<FamilyResponseDto>, int)> GetBySupervisorIdsAsync(
+    IEnumerable<int> supervisorIds,
+    int pageNumber,
+    int pageSize);
     }
 }

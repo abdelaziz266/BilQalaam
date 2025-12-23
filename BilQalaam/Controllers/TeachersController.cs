@@ -1,7 +1,9 @@
 using BilQalaam.Application.DTOs.Common;
+using BilQalaam.Application.DTOs.Families;
 using BilQalaam.Application.DTOs.Teachers;
 using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
+using BilQalaam.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -132,6 +134,38 @@ namespace BilQalaam.Api.Controllers
                     "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
                     404
                 ));
+        }
+        [HttpGet("by-supervisors")]
+        public async Task<IActionResult> GetBySupervisors(
+            [FromQuery] IEnumerable<int> supervisorIds,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10000)
+        {
+            if (!supervisorIds.Any())
+                return BadRequest("SupervisorIds is required");
+
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            var (teachers, totalCount) =
+                await _teacherService.GetBySupervisorIdsAsync(
+                    supervisorIds.Distinct(),
+                    pageNumber,
+                    pageSize);
+
+            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            return Ok(ApiResponseDto<PaginatedResponseDto<TeacherResponseDto>>.Success(
+                new PaginatedResponseDto<TeacherResponseDto>
+                {
+                    Items = teachers,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    PagesCount = pagesCount
+                },
+                " „ «” —Ã«⁄ „⁄·„Ï «·„‘—›Ì‰ »‰Ã«Õ"
+            ));
         }
     }
 }

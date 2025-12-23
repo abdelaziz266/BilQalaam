@@ -1,11 +1,13 @@
 using AutoMapper;
 using BilQalaam.Application.DTOs.Students;
+using BilQalaam.Application.DTOs.Teachers;
 using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
 using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
 using BilQalaam.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -47,7 +49,7 @@ namespace BilQalaam.Application.Services
                 if (familyIds?.Any() == true)
                 {
                     var allowedFamilyIds = new HashSet<int>(familyIds);
-                    filteredStudents = filteredStudents.Where(s => allowedFamilyIds.Contains(s.FamilyId));
+                    filteredStudents = filteredStudents.Where(s => allowedFamilyIds.Contains(s.FamilyId ?? 0));
                 }
 
                 if (teacherIds?.Any() == true)
@@ -160,12 +162,15 @@ namespace BilQalaam.Application.Services
                 var students = await _unitOfWork.Repository<Student>().FindAsync(s => s.StudentName == dto.FullName);
                 if (students.Any())
                     throw new ValidationException(new List<string> { "«”„ «·ÿ«·» „” Œœ„ »«·›⁄·" });
+                if (dto.FamilyId > 0)
+                {
 
-                // «· Õﬁﬁ „‰ ÊÃÊœ «·⁄«∆·…
-                var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
-                if (family == null)
-                    throw new ValidationException(new List<string> { "«·√”—… €Ì— „ÊÃÊœ…" });
+                    // «· Õﬁﬁ „‰ ÊÃÊœ «·⁄«∆·…
+                    var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
+                    if (family == null)
+                        throw new ValidationException(new List<string> { "«·√”—… €Ì— „ÊÃÊœ…" });
 
+                }
                 // «· Õﬁﬁ „‰ ÊÃÊœ «·„⁄·„
                 var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
                 if (teacher == null)
@@ -245,9 +250,14 @@ namespace BilQalaam.Application.Services
                     if (existingStudent.Any())
                         throw new ValidationException(new List<string> { "«”„ «·ÿ«·» „” Œœ„ »«·›⁄·" });
                 }
+                if (dto.FamilyId > 0)
+                {
 
-                var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
-                if (family == null) return false;
+                    // «· Õﬁﬁ „‰ ÊÃÊœ «·⁄«∆·…
+
+                    var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
+                    if (family == null) return false;
+                }
 
                 var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
                 if (teacher == null) return false;
@@ -350,5 +360,34 @@ namespace BilQalaam.Application.Services
                 throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Õ–› «·ÿ«·»: {ex.Message}" });
             }
         }
+
+        public async Task<(IEnumerable<StudentResponseDto>, int)> GetByFamilyIdsAsync(
+    IEnumerable<int> familyIds,
+    int pageNumber,
+    int pageSize)
+        {
+            try
+            {
+                var query = _unitOfWork
+                    .Repository<Student>()
+                    .Query()
+                    .Include(t => t.Family)
+                    .Where(t => t.FamilyId.HasValue &&
+                                familyIds.Contains(t.FamilyId.Value));
+                var totalCount = await query.CountAsync();
+
+                var students = await query
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                return (_mapper.Map<IEnumerable<StudentResponseDto>>(students), totalCount);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» «·ÿ·«»: {ex.Message}" });
+            }
+        }
+
     }
 }

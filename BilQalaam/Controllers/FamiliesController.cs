@@ -1,6 +1,5 @@
 using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.DTOs.Families;
-using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -126,5 +125,41 @@ namespace BilQalaam.Api.Controllers
 
             return Ok(ApiResponseDto<bool>.Success(result.Data, " „ Õ–› «·⁄«∆·… »‰Ã«Õ"));
         }
+
+        // ? GET: api/Families/supervisor/{supervisorId}
+        // GET: api/Families/by-supervisors
+        [HttpGet("by-supervisors")]
+        public async Task<IActionResult> GetBySupervisors(
+            [FromQuery] IEnumerable<int> supervisorIds,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10000)
+        {
+            if (!supervisorIds.Any())
+                return BadRequest("SupervisorIds is required");
+
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            var (families, totalCount) =
+                await _familyService.GetBySupervisorIdsAsync(
+                    supervisorIds.Distinct(),
+                    pageNumber,
+                    pageSize);
+
+            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            return Ok(ApiResponseDto<PaginatedResponseDto<FamilyResponseDto>>.Success(
+                new PaginatedResponseDto<FamilyResponseDto>
+                {
+                    Items = families,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    PagesCount = pagesCount
+                },
+                " „ «” —Ã«⁄ ⁄«∆·«  «·„‘—›Ì‰ »‰Ã«Õ"
+            ));
+        }
+
     }
 }

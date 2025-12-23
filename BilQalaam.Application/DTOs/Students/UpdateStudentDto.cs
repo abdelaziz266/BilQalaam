@@ -21,9 +21,8 @@ namespace BilQalaam.Application.DTOs.Students
 
         public Currency Currency { get; set; }
 
-        // ?? ÇáÚÇÆáÉ ÇáãæßæáÉ ááØÇáÈ (ID ãä ÌÏæá Families)
-        [Range(1, int.MaxValue, ErrorMessage = "íÌÈ ÇÎÊíÇÑ ÚÇÆáÉ ÕÍíÍÉ")]
-        public int FamilyId { get; set; }
+        
+        public int? FamilyId { get; set; }
 
         // ?? ÇáãÚáã ÇáãÓÄæá Úäå (ID ãä ÌÏæá Teachers)
         [Range(1, int.MaxValue, ErrorMessage = "íÌÈ ÇÎÊíÇÑ ãÚáã ÕÍíÍ")]

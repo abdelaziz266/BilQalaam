@@ -135,7 +135,7 @@ namespace BilQalaam.Application.Services
                 var studentId = studentGroup.Key;
                 var studentLessons = studentGroup.ToList();
                 var student = studentsDict.GetValueOrDefault(studentId);
-                var family = student != null ? familiesDict.GetValueOrDefault(student.FamilyId) : null;
+                var family = student != null ? familiesDict.GetValueOrDefault(student.FamilyId ?? 0) : null;
 
                 var studentDetail = new TeacherStudentDetailDto
                 {

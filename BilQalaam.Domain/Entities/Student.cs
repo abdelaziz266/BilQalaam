@@ -15,7 +15,7 @@ namespace BilQalaam.Domain.Entities
         public Currency Currency { get; set; }
 
         // ?????? ÇáÚÇÆáÉ ÇáÊÇÈÚ áåÇ (ßá ØÇáÈ áå ÚÇÆáÉ æÇÍÏÉ)
-        public int FamilyId { get; set; }
+        public int? FamilyId { get; set; }
         public Family Family { get; set; } = null!;
 
         // ???? ÇáãÚáã ÇáÊÇÈÚ áå (ßá ØÇáÈ áå ãÚáã æÇÍÏ)

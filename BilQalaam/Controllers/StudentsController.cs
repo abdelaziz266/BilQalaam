@@ -1,7 +1,9 @@
 using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.DTOs.Students;
+using BilQalaam.Application.DTOs.Teachers;
 using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
+using BilQalaam.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -141,6 +143,38 @@ namespace BilQalaam.Api.Controllers
                     "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ",
                     404
                 ));
+        }
+        [HttpGet("by-families")]
+        public async Task<IActionResult> GetByFamilies(
+            [FromQuery] IEnumerable<int> familyIds,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10000)
+        {
+            if (!familyIds.Any())
+                return BadRequest("FamilyIds is required");
+
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            var (students, totalCount) =
+                await _studentService.GetByFamilyIdsAsync(
+                    familyIds.Distinct(),
+                    pageNumber,
+                    pageSize);
+
+            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            return Ok(ApiResponseDto<PaginatedResponseDto<StudentResponseDto>>.Success(
+                new PaginatedResponseDto<StudentResponseDto>
+                {
+                    Items = students,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    PagesCount = pagesCount
+                },
+                " „ «” —Ã«⁄ ÿ·«» «·⁄«∆·«  »‰Ã«Õ"
+            ));
         }
     }
 }

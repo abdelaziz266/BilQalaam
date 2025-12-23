@@ -1,4 +1,5 @@
 using AutoMapper;
+using BilQalaam.Application.DTOs.Families;
 using BilQalaam.Application.DTOs.Teachers;
 using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
@@ -6,6 +7,7 @@ using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
 using BilQalaam.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace BilQalaam.Application.Services
 {
@@ -78,6 +80,34 @@ namespace BilQalaam.Application.Services
             catch (Exception ex)
             {
                 throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» «·„⁄·„: {ex.Message}" });
+            }
+        }
+
+        public async Task<(IEnumerable<TeacherResponseDto>, int)> GetBySupervisorIdsAsync(
+    IEnumerable<int> supervisorIds,
+    int pageNumber,
+    int pageSize)
+        {
+            try
+            {
+                var query = _unitOfWork
+                    .Repository<Teacher>()
+                    .Query()
+                    .Include(t => t.Supervisor)
+                    .Where(t => t.SupervisorId.HasValue &&
+                                supervisorIds.Contains(t.SupervisorId.Value));
+                var totalCount = await query.CountAsync();
+
+                var teachers = await query
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                return (_mapper.Map<IEnumerable<TeacherResponseDto>>(teachers), totalCount);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» „⁄·„Ì «·„‘—›Ì‰: {ex.Message}" });
             }
         }
 
