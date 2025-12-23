@@ -14,6 +14,10 @@ namespace BilQalaam.Application.DTOs.Lessons
         public int TeacherId { get; set; }
         public string TeacherName { get; set; } = string.Empty;
 
+        // 🧑‍🏫 المشرف
+        public int? SupervisorId { get; set; }
+        public string SupervisorName { get; set; } = string.Empty;
+
         // 👨‍👩‍👧 العائلة
         public int FamilyId { get; set; }
         public string FamilyName { get; set; } = string.Empty;

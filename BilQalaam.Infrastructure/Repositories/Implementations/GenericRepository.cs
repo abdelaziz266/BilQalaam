@@ -66,5 +66,17 @@ namespace BilQalaam.Infrastructure.Repositories.Implementations
 
         public void Delete(T entity)
             => _dbSet.Remove(entity);
+        public IQueryable<T> Query()
+        {
+            var query = _dbSet.AsNoTracking().AsQueryable();
+
+            if (typeof(Base).IsAssignableFrom(typeof(T)))
+            {
+                query = query.Where(x => !((Base)(object)x).IsDeleted);
+            }
+
+            return query;
+        }
+
     }
 }

@@ -7,6 +7,9 @@ namespace BilQalaam.Application.DTOs.Lessons
         // 👨‍🎓 الطالب (ID من جدول Students)
         public int StudentId { get; set; }
 
+        // 👨‍🏫 المعلم المستهدف (يُطلب من الـ Admin أو SuperAdmin فقط)
+        public int? TeacherId { get; set; }
+
         // 📅 بيانات الدرس
         public DateTime LessonDate { get; set; }
         public int DurationMinutes { get; set; }

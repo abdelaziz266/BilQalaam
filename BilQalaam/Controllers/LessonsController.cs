@@ -6,7 +6,11 @@ using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace BilQalaam.Api.Controllers
 {
@@ -38,7 +42,15 @@ namespace BilQalaam.Api.Controllers
 
         // ✅ GET: api/Lessons/get
         [HttpGet("get")]
-        public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetAll(
+                                [FromQuery] int pageNumber = 1,
+                                [FromQuery] int pageSize = 10,
+                                [FromQuery] IEnumerable<int>? supervisorIds = null,
+                                [FromQuery] IEnumerable<int>? teacherIds = null,
+                                [FromQuery] IEnumerable<int>? studentIds = null,
+                                [FromQuery] IEnumerable<int>? familyIds = null,
+                                [FromQuery] DateTime? fromDate = null,
+                                [FromQuery] DateTime? toDate = null)
         {
             if (pageNumber < 1) pageNumber = 1;
             if (pageSize < 1) pageSize = 10;
@@ -46,50 +58,21 @@ namespace BilQalaam.Api.Controllers
             var role = GetCurrentUserRole();
             var userId = GetCurrentUserId();
 
-            IEnumerable<LessonResponseDto> lessons;
-            int totalCount;
-
-            if (role == "SuperAdmin" || role == "Admin")
-            {
-                (lessons, totalCount) = await _lessonService.GetAllAsync(pageNumber, pageSize);
-            }
-            else if (role == "Teacher")
-            {
-                var teachers = await _unitOfWork.Repository<Teacher>().FindAsync(t => t.UserId == userId);
-                var teacher = teachers.FirstOrDefault();
-                if (teacher == null)
-                    return Ok(ApiResponseDto<PaginatedResponseDto<LessonResponseDto>>.Success(
-                        new PaginatedResponseDto<LessonResponseDto>
-                        {
-                            Items = new List<LessonResponseDto>(),
-                            PageNumber = pageNumber,
-                            PageSize = pageSize,
-                            TotalCount = 0,
-                            PagesCount = 0
-                        },
-                        "لم يتم العثور على دروس"
-                    ));
-
-                (lessons, totalCount) = await _lessonService.GetByTeacherIdAsync(teacher.Id, pageNumber, pageSize);
-            }
-            else
-            {
-                return Forbid();
-            }
-
-            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-            var paginatedResponse = new PaginatedResponseDto<LessonResponseDto>
-            {
-                Items = lessons,
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                PagesCount = pagesCount
-            };
+            var result = await _lessonService.GetAllAsync(
+                pageNumber,
+                pageSize,
+                supervisorIds?.Distinct(),
+                teacherIds?.Distinct(),
+                studentIds?.Distinct(),
+                familyIds?.Distinct(),
+                fromDate,
+                toDate,
+                role,
+                userId
+            );
 
             return Ok(ApiResponseDto<PaginatedResponseDto<LessonResponseDto>>.Success(
-                paginatedResponse,
+                result,
                 "تم استرجاع الدروس بنجاح"
             ));
         }
@@ -166,7 +149,16 @@ namespace BilQalaam.Api.Controllers
                 var userId = GetCurrentUserId();
                 var role = GetCurrentUserRole();
 
+                var student = await _unitOfWork.Repository<Student>().GetByIdAsync(dto.StudentId);
+                if (student == null)
+                    return BadRequest(ApiResponseDto<int>.Fail(
+                        new List<string> { "الطالب غير موجود" },
+                        "فشل التحقق من البيانات",
+                        400
+                    ));
+
                 int teacherId;
+                int? supervisorId = null;
 
                 if (role == "Teacher")
                 {
@@ -180,21 +172,59 @@ namespace BilQalaam.Api.Controllers
                         ));
 
                     teacherId = teacher.Id;
+                    supervisorId = teacher.SupervisorId;
                 }
-                else
+                else if (role == "Admin")
                 {
-                    var student = await _unitOfWork.Repository<Student>().GetByIdAsync(dto.StudentId);
-                    if (student == null)
+                    if (!dto.TeacherId.HasValue)
                         return BadRequest(ApiResponseDto<int>.Fail(
-                            new List<string> { "الطالب غير موجود" },
+                            new List<string> { "المعلم مطلوب" },
                             "فشل التحقق من البيانات",
                             400
                         ));
 
-                    teacherId = student.TeacherId;
+                    teacherId = dto.TeacherId.Value;
+                    var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
+                    if (teacher == null)
+                        return BadRequest(ApiResponseDto<int>.Fail(
+                            new List<string> { "المعلم غير موجود" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    var supervisors = await _unitOfWork.Repository<Supervisor>().FindAsync(s => s.UserId == userId);
+                    var supervisor = supervisors.FirstOrDefault();
+                    if (supervisor == null)
+                        return BadRequest(ApiResponseDto<int>.Fail(
+                            new List<string> { "لم يتم العثور على بيانات المشرف" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    supervisorId = supervisor.Id;
+                }
+                else // SuperAdmin
+                {
+                    if (!dto.TeacherId.HasValue)
+                        return BadRequest(ApiResponseDto<int>.Fail(
+                            new List<string> { "المعلم مطلوب" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    teacherId = dto.TeacherId.Value;
+                    var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
+                    if (teacher == null)
+                        return BadRequest(ApiResponseDto<int>.Fail(
+                            new List<string> { "المعلم غير موجود" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    supervisorId = teacher.SupervisorId;
                 }
 
-                var id = await _lessonService.CreateAsync(dto, teacherId, userId);
+                var id = await _lessonService.CreateAsync(dto, teacherId, userId, supervisorId);
                 return Ok(ApiResponseDto<int>.Success(id, "تم إنشاء الدرس بنجاح", 201));
             }
             catch (ValidationException ex)
@@ -218,15 +248,91 @@ namespace BilQalaam.Api.Controllers
                 return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "فشل التحقق من البيانات", 400));
             }
 
-            var currentUserId = GetCurrentUserId();
-            var success = await _lessonService.UpdateAsync(id, dto, currentUserId);
-            return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "تم تحديث الدرس بنجاح"))
-                : NotFound(ApiResponseDto<bool>.Fail(
-                    new List<string> { "الدرس غير موجود" },
-                    "لم يتم العثور عليه",
-                    404
-                ));
+            try
+            {
+                var userId = GetCurrentUserId();
+                var role = GetCurrentUserRole();
+
+                int teacherId;
+                int? supervisorId = null;
+
+                if (role == "Teacher")
+                {
+                    var teachers = await _unitOfWork.Repository<Teacher>().FindAsync(t => t.UserId == userId);
+                    var teacher = teachers.FirstOrDefault();
+                    if (teacher == null)
+                        return BadRequest(ApiResponseDto<bool>.Fail(
+                            new List<string> { "لم يتم العثور على بيانات المعلم" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    teacherId = teacher.Id;
+                    supervisorId = teacher.SupervisorId;
+                }
+                else if (role == "Admin")
+                {
+                    if (!dto.TeacherId.HasValue)
+                        return BadRequest(ApiResponseDto<bool>.Fail(
+                            new List<string> { "المعلم مطلوب" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    teacherId = dto.TeacherId.Value;
+                    var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
+                    if (teacher == null)
+                        return BadRequest(ApiResponseDto<bool>.Fail(
+                            new List<string> { "المعلم غير موجود" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    var supervisors = await _unitOfWork.Repository<Supervisor>().FindAsync(s => s.UserId == userId);
+                    var supervisor = supervisors.FirstOrDefault();
+                    if (supervisor == null)
+                        return BadRequest(ApiResponseDto<bool>.Fail(
+                            new List<string> { "لم يتم العثور على بيانات المشرف" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    supervisorId = supervisor.Id;
+                }
+                else // SuperAdmin
+                {
+                    if (!dto.TeacherId.HasValue)
+                        return BadRequest(ApiResponseDto<bool>.Fail(
+                            new List<string> { "المعلم مطلوب" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    teacherId = dto.TeacherId.Value;
+                    var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
+                    if (teacher == null)
+                        return BadRequest(ApiResponseDto<bool>.Fail(
+                            new List<string> { "المعلم غير موجود" },
+                            "فشل التحقق من البيانات",
+                            400
+                        ));
+
+                    supervisorId = teacher.SupervisorId;
+                }
+
+                var success = await _lessonService.UpdateAsync(id, dto, userId, teacherId, supervisorId);
+                return success
+                    ? Ok(ApiResponseDto<bool>.Success(true, "تم تحديث الدرس بنجاح"))
+                    : NotFound(ApiResponseDto<bool>.Fail(
+                        new List<string> { "الدرس غير موجود" },
+                        "لم يتم العثور عليه",
+                        404
+                    ));
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(ApiResponseDto<bool>.Fail(ex.Errors, "فشل التحقق من البيانات", 400));
+            }
         }
 
         // ✅ DELETE: api/Lessons/delete/{id}

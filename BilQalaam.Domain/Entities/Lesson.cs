@@ -12,6 +12,10 @@ public class Lesson:Base
     public int TeacherId { get; set; }
     public Teacher Teacher { get; set; } = null!;
 
+    // 🧑‍🏫 المشرف
+    public int? SupervisorId { get; set; }
+    public Supervisor? Supervisor { get; set; }
+
     // 👨‍👩‍👧 العائلة
     public int FamilyId { get; set; }
     public Family Family { get; set; } = null!;

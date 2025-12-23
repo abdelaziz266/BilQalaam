@@ -1,9 +1,11 @@
 ﻿using AutoMapper;
+using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.DTOs.Lessons;
 using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
 using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace BilQalaam.Application.Services
 {
@@ -18,25 +20,58 @@ namespace BilQalaam.Application.Services
             _mapper = mapper;
         }
 
-        public async Task<(IEnumerable<LessonResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10)
+        public async Task<PaginatedResponseDto<LessonResponseDto>> GetAllAsync(
+                        int pageNumber,
+                        int pageSize,
+                        IEnumerable<int>? supervisorIds,
+                        IEnumerable<int>? teacherIds,
+                        IEnumerable<int>? studentIds,
+                        IEnumerable<int>? familyIds,
+                        DateTime? fromDate,
+                        DateTime? toDate,
+                        string role,
+                        string userId)
         {
-            try
-            {
-                var lessons = await _unitOfWork
-                    .Repository<Lesson>()
-                    .GetAllAsync();
+            IQueryable<Lesson> query = _unitOfWork
+                .Repository<Lesson>()
+                .Query(); 
 
-                var totalCount = lessons.Count();
-                var paginatedLessons = lessons
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize);
+            if (supervisorIds?.Any() == true)
+                query = query.Where(l => l.SupervisorId.HasValue && supervisorIds.Contains(l.SupervisorId.Value));
 
-                return (_mapper.Map<IEnumerable<LessonResponseDto>>(paginatedLessons), totalCount);
-            }
-            catch (Exception ex)
+            if (teacherIds?.Any() == true)
+                query = query.Where(l => teacherIds.Contains(l.TeacherId));
+
+            if (studentIds?.Any() == true)
+                query = query.Where(l => studentIds.Contains(l.StudentId));
+
+            if (familyIds?.Any() == true)
+                query = query.Where(l => familyIds.Contains(l.FamilyId));
+
+            if (fromDate.HasValue)
+                query = query.Where(l => l.LessonDate >= fromDate.Value);
+
+            if (toDate.HasValue)
+                query = query.Where(l => l.LessonDate <= toDate.Value);
+
+            // Role logic هنا
+            query = ApplyRoleFilter(query, role, userId);
+
+            var totalCount = await query.CountAsync();
+
+            var lessons = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return new PaginatedResponseDto<LessonResponseDto>
             {
-                throw new ValidationException(new List<string> { $"خطأ في جلب الدروس: {ex.Message}" });
-            }
+                Items = _mapper.Map<List<LessonResponseDto>>(lessons),
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                PagesCount = (int)Math.Ceiling(totalCount / (double)pageSize)
+            };
         }
 
         public async Task<LessonResponseDto?> GetByIdAsync(int id)
@@ -73,6 +108,31 @@ namespace BilQalaam.Application.Services
             catch (Exception ex)
             {
                 throw new ValidationException(new List<string> { $"خطأ في جلب دروس المعلم: {ex.Message}" });
+            }
+        }
+
+        public async Task<(IEnumerable<LessonResponseDto>, int)> GetByTeacherIdsAsync(IEnumerable<int> teacherIds, int pageNumber = 1, int pageSize = 10)
+        {
+            try
+            {
+                var teacherIdSet = new HashSet<int>(teacherIds ?? Enumerable.Empty<int>());
+                if (!teacherIdSet.Any())
+                    return (Enumerable.Empty<LessonResponseDto>(), 0);
+
+                var lessons = await _unitOfWork
+                    .Repository<Lesson>()
+                    .FindAsync(l => teacherIdSet.Contains(l.TeacherId));
+
+                var totalCount = lessons.Count();
+                var paginatedLessons = lessons
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize);
+
+                return (_mapper.Map<IEnumerable<LessonResponseDto>>(paginatedLessons), totalCount);
+            }
+            catch (Exception ex)
+            {
+                throw new ValidationException(new List<string> { $"خطأ في جلب دروس المعلمين: {ex.Message}" });
             }
         }
 
@@ -124,7 +184,7 @@ namespace BilQalaam.Application.Services
             }
         }
 
-        public async Task<int> CreateAsync(CreateLessonDto dto, int teacherId, string createdByUserId)
+        public async Task<int> CreateAsync(CreateLessonDto dto, int teacherId, string createdByUserId, int? supervisorId = null)
         {
             try
             {
@@ -143,6 +203,7 @@ namespace BilQalaam.Application.Services
                 {
                     StudentId = dto.StudentId,
                     TeacherId = teacherId,
+                    SupervisorId = supervisorId,
                     FamilyId = student.FamilyId,
                     LessonDate = dto.LessonDate,
                     DurationMinutes = dto.DurationMinutes,
@@ -170,22 +231,30 @@ namespace BilQalaam.Application.Services
             }
         }
 
-        public async Task<bool> UpdateAsync(int id, UpdateLessonDto dto, string updatedByUserId)
+        public async Task<bool> UpdateAsync(int id, UpdateLessonDto dto, string updatedByUserId, int teacherId, int? supervisorId = null)
         {
             try
             {
                 var lesson = await _unitOfWork.Repository<Lesson>().GetByIdAsync(id);
                 if (lesson == null) return false;
 
-                if (dto.StudentId.HasValue && dto.StudentId.Value != lesson.StudentId)
-                {
-                    var student = await _unitOfWork.Repository<Student>().GetByIdAsync(dto.StudentId.Value);
-                    if (student == null) return false;
+                var studentIdToUse = dto.StudentId ?? lesson.StudentId;
+                var student = await _unitOfWork.Repository<Student>().GetByIdAsync(studentIdToUse);
+                if (student == null)
+                    throw new ValidationException(new List<string> { "الطالب غير موجود" });
 
-                    lesson.StudentId = dto.StudentId.Value;
-                    lesson.FamilyId = student.FamilyId;
-                    lesson.StudentHourlyRate = student.HourlyRate;
-                }
+                var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
+                if (teacher == null)
+                    throw new ValidationException(new List<string> { "المعلم غير موجود" });
+
+                lesson.StudentId = student.Id;
+                lesson.FamilyId = student.FamilyId;
+                lesson.StudentHourlyRate = student.HourlyRate;
+                lesson.Currency = student.Currency;
+
+                lesson.TeacherId = teacherId;
+                lesson.TeacherHourlyRate = teacher.HourlyRate;
+                lesson.SupervisorId = supervisorId;
 
                 if (dto.LessonDate.HasValue)
                     lesson.LessonDate = dto.LessonDate.Value;
@@ -206,6 +275,10 @@ namespace BilQalaam.Application.Services
                 await _unitOfWork.CompleteAsync();
 
                 return true;
+            }
+            catch (ValidationException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -235,5 +308,26 @@ namespace BilQalaam.Application.Services
                 throw new ValidationException(new List<string> { $"خطأ في حذف الدرس: {ex.Message}" });
             }
         }
+
+
+
+
+
+
+
+        private IQueryable<Lesson> ApplyRoleFilter(
+    IQueryable<Lesson> query,
+    string role,
+    string userId)
+        {
+            if (role == "Teacher")
+                return query.Where(l => l.Teacher.UserId == userId);
+
+            if (role == "Admin")
+                return query.Where(l => l.Teacher.Supervisor.UserId == userId);
+
+            return query; // SuperAdmin
+        }
+
     }
 }

@@ -33,7 +33,9 @@ namespace BilQalaam.Application.Mapping
                 .ForMember(dest => dest.TeacherName,
                     opt => opt.MapFrom(src => src.Teacher != null ? src.Teacher.TeacherName : null))
                 .ForMember(dest => dest.FamilyName,
-                    opt => opt.MapFrom(src => src.Family != null ? src.Family.FamilyName : null));
+                    opt => opt.MapFrom(src => src.Family != null ? src.Family.FamilyName : null))
+                .ForMember(dest => dest.SupervisorName,
+                    opt => opt.MapFrom(src => src.Supervisor != null ? src.Supervisor.SupervisorName : string.Empty));
 
             // 🟡 Lesson: Create DTO → Entity (POST)
             CreateMap<CreateLessonDto, Lesson>();

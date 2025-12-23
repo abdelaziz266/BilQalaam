@@ -4,6 +4,7 @@ using BilQalaam.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BilQalaam.Infrastructure.Migrations
 {
     [DbContext(typeof(BilQalaamDbContext))]
-    partial class BilQalaamDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251223023942_UpdateLessonTable")]
+    partial class UpdateLessonTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
