@@ -22,11 +22,6 @@ namespace BilQalaam.Application.DTOs.Students
         [StringLength(100, MinimumLength = 6, ErrorMessage = "ﬂ·„… «·„—Ê— ÌÃ» √‰  ﬂÊ‰ »Ì‰ 6 Ê 100 Õ—›")]
         public string Password { get; set; } = string.Empty;
 
-        // ?? »Ì«‰«  «·ÿ«·»
-        [Required(ErrorMessage = "«”„ «·ÿ«·» „ÿ·Ê»")]
-        [StringLength(100, MinimumLength = 3, ErrorMessage = "«”„ «·ÿ«·» ÌÃ» √‰ ÌﬂÊ‰ »Ì‰ 3 Ê 100 Õ—›")]
-        public string StudentName { get; set; } = string.Empty;
-
         // ?? √Ã— «·ÿ«·»
         [Range(0.01, double.MaxValue, ErrorMessage = "”⁄— «·”«⁄… ÌÃ» √‰ ÌﬂÊ‰ √ﬂ»— „‰ 0")]
         public decimal HourlyRate { get; set; }

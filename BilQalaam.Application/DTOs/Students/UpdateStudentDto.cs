@@ -14,10 +14,6 @@ namespace BilQalaam.Application.DTOs.Students
         [RegularExpression(@"^(010|011|012)\d{8}$", ErrorMessage = "—ﬁ„ «·Â« › ÌÃ» √‰ Ì»œ√ » 010 √Ê 011 √Ê 012 ÊÌﬂÊ‰ 11 —ﬁ„")]
         public string PhoneNumber { get; set; } = string.Empty;
 
-        // ?? »Ì«‰«  «·ÿ«·»
-        [Required(ErrorMessage = "«”„ «·ÿ«·» „ÿ·Ê»")]
-        [StringLength(100, MinimumLength = 3, ErrorMessage = "«”„ «·ÿ«·» ÌÃ» √‰ ÌﬂÊ‰ »Ì‰ 3 Ê 100 Õ—›")]
-        public string StudentName { get; set; } = string.Empty;
 
         // ?? √Ã— «·ÿ«·»
         [Range(0.01, double.MaxValue, ErrorMessage = "”⁄— «·”«⁄… ÌÃ» √‰ ÌﬂÊ‰ √ﬂ»— „‰ 0")]

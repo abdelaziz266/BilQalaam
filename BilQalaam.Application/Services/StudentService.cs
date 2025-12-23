@@ -6,6 +6,8 @@ using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
 using BilQalaam.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace BilQalaam.Application.Services
 {
@@ -28,7 +30,11 @@ namespace BilQalaam.Application.Services
             _roleManager = roleManager;
         }
 
-        public async Task<(IEnumerable<StudentResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10)
+        public async Task<(IEnumerable<StudentResponseDto>, int)> GetAllAsync(
+            int pageNumber = 1,
+            int pageSize = 10,
+            IEnumerable<int>? familyIds = null,
+            IEnumerable<int>? teacherIds = null)
         {
             try
             {
@@ -36,12 +42,54 @@ namespace BilQalaam.Application.Services
                     .Repository<Student>()
                     .GetAllAsync();
 
-                var totalCount = students.Count();
-                var paginatedStudents = students
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize);
+                var filteredStudents = students;
 
-                return (_mapper.Map<IEnumerable<StudentResponseDto>>(paginatedStudents), totalCount);
+                if (familyIds?.Any() == true)
+                {
+                    var allowedFamilyIds = new HashSet<int>(familyIds);
+                    filteredStudents = filteredStudents.Where(s => allowedFamilyIds.Contains(s.FamilyId));
+                }
+
+                if (teacherIds?.Any() == true)
+                {
+                    var allowedTeacherIds = new HashSet<int>(teacherIds);
+                    filteredStudents = filteredStudents.Where(s => allowedTeacherIds.Contains(s.TeacherId));
+                }
+
+                var filteredList = filteredStudents.ToList();
+                var totalCount = filteredList.Count;
+
+                var paginatedStudents = filteredList
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                var familyIdsForNames = paginatedStudents.Select(s => s.FamilyId).Distinct().ToList();
+                var teacherIdsForNames = paginatedStudents.Select(s => s.TeacherId).Distinct().ToList();
+
+                var families = familyIdsForNames.Any()
+                    ? await _unitOfWork.Repository<Family>().FindAsync(f => familyIdsForNames.Contains(f.Id))
+                    : Enumerable.Empty<Family>();
+
+                var teachers = teacherIdsForNames.Any()
+                    ? await _unitOfWork.Repository<Teacher>().FindAsync(t => teacherIdsForNames.Contains(t.Id))
+                    : Enumerable.Empty<Teacher>();
+
+                var familyMap = families.ToDictionary(f => f.Id, f => f.FamilyName);
+                var teacherMap = teachers.ToDictionary(t => t.Id, t => t.TeacherName);
+
+                var studentDtos = _mapper.Map<List<StudentResponseDto>>(paginatedStudents);
+
+                foreach (var dto in studentDtos)
+                {
+                    if (familyMap.TryGetValue(dto.FamilyId, out var familyName))
+                        dto.FamilyName = familyName;
+
+                    if (teacherMap.TryGetValue(dto.TeacherId, out var teacherName))
+                        dto.TeacherName = teacherName;
+                }
+
+                return (studentDtos, totalCount);
             }
             catch (Exception ex)
             {
@@ -109,7 +157,7 @@ namespace BilQalaam.Application.Services
                     throw new ValidationException(new List<string> { "«·»—Ìœ «·≈·ﬂ —Ê‰Ì „” Œœ„ »«·›⁄·" });
 
                 // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «”„ «·ÿ«·»
-                var students = await _unitOfWork.Repository<Student>().FindAsync(s => s.StudentName == dto.StudentName);
+                var students = await _unitOfWork.Repository<Student>().FindAsync(s => s.StudentName == dto.FullName);
                 if (students.Any())
                     throw new ValidationException(new List<string> { "«”„ «·ÿ«·» „” Œœ„ »«·›⁄·" });
 
@@ -151,7 +199,7 @@ namespace BilQalaam.Application.Services
                 // 2?? ≈‰‘«¡ «·ÿ«·» „— »ÿ »«·ÌÊ“—
                 var student = new Student
                 {
-                    StudentName = dto.StudentName,
+                    StudentName = dto.FullName,
                     PhoneNumber = dto.PhoneNumber,
                     Email = dto.Email,
                     HourlyRate = dto.HourlyRate,
@@ -190,10 +238,10 @@ namespace BilQalaam.Application.Services
                 if (student == null) return false;
 
                 // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «”„ «·ÿ«·» (≈–«  „  €ÌÌ—Â)
-                if (student.StudentName != dto.StudentName)
+                if (student.StudentName != dto.FullName)
                 {
                     var existingStudent = await _unitOfWork.Repository<Student>()
-                        .FindAsync(s => s.StudentName == dto.StudentName && s.Id != id);
+                        .FindAsync(s => s.StudentName == dto.FullName && s.Id != id);
                     if (existingStudent.Any())
                         throw new ValidationException(new List<string> { "«”„ «·ÿ«·» „” Œœ„ »«·›⁄·" });
                 }
@@ -204,7 +252,7 @@ namespace BilQalaam.Application.Services
                 var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
                 if (teacher == null) return false;
 
-                student.StudentName = dto.StudentName;
+                student.StudentName = dto.FullName;
                 student.PhoneNumber = dto.PhoneNumber;
                 student.HourlyRate = dto.HourlyRate;
                 student.Currency = dto.Currency;

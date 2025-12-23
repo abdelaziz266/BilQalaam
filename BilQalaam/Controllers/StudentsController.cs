@@ -29,25 +29,34 @@ namespace BilQalaam.Api.Controllers
 
         // ? GET: api/Students/get
         [HttpGet("get")]
-        public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetAll(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] IEnumerable<int>? familyIds = null,
+        [FromQuery] IEnumerable<int>? teacherIds = null)
         {
             if (pageNumber < 1) pageNumber = 1;
             if (pageSize < 1) pageSize = 10;
 
-            var (students, totalCount) = await _studentService.GetAllAsync(pageNumber, pageSize);
+            var (students, totalCount) =
+                await _studentService.GetAllAsync(
+                    pageNumber,
+                    pageSize,
+                    familyIds?.Distinct(),
+                    teacherIds?.Distinct()
+                );
+
             var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
 
-            var paginatedResponse = new PaginatedResponseDto<StudentResponseDto>
-            {
-                Items = students,
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                PagesCount = pagesCount
-            };
-
             return Ok(ApiResponseDto<PaginatedResponseDto<StudentResponseDto>>.Success(
-                paginatedResponse,
+                new PaginatedResponseDto<StudentResponseDto>
+                {
+                    Items = students,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    PagesCount = pagesCount
+                },
                 " „ «” —Ã«⁄ «·ÿ·«» »‰Ã«Õ"
             ));
         }
@@ -67,22 +76,6 @@ namespace BilQalaam.Api.Controllers
                     student,
                     " „ «” —Ã«⁄ «·ÿ«·» »‰Ã«Õ"
                 ));
-        }
-
-        // ? GET: api/Students/ByFamily/{familyId}
-        [HttpGet("ByFamily/{familyId}")]
-        public async Task<IActionResult> GetByFamilyId(int familyId)
-        {
-            var students = await _studentService.GetByFamilyIdAsync(familyId);
-            return Ok(ApiResponseDto<IEnumerable<StudentResponseDto>>.Success(students, " „ «” —Ã«⁄ «·ÿ·«» »‰Ã«Õ"));
-        }
-
-        // ? GET: api/Students/ByTeacher/{teacherId}
-        [HttpGet("ByTeacher/{teacherId}")]
-        public async Task<IActionResult> GetByTeacherId(int teacherId)
-        {
-            var students = await _studentService.GetByTeacherIdAsync(teacherId);
-            return Ok(ApiResponseDto<IEnumerable<StudentResponseDto>>.Success(students, " „ «” —Ã«⁄ «·ÿ·«» »‰Ã«Õ"));
         }
 
         // ? POST: api/Students/create
