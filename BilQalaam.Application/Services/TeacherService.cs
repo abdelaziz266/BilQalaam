@@ -8,6 +8,7 @@ using BilQalaam.Domain.Entities;
 using BilQalaam.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace BilQalaam.Application.Services
 {
@@ -30,24 +31,28 @@ namespace BilQalaam.Application.Services
             _roleManager = roleManager;
         }
 
-        public async Task<(IEnumerable<TeacherResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10)
+        public async Task<(IEnumerable<TeacherResponseDto>, int)> GetAllAsync(string currentUserId, string role, int pageNumber = 1, int pageSize = 10)
         {
             try
             {
-                var teachers = await _unitOfWork
-                    .Repository<Teacher>()
-                    .GetAllAsync();
-
-                // ??  Õ„Ì· Supervisor ··„⁄·„Ì‰
-                foreach (var teacher in teachers)
+                List<Teacher> teachers = new();
+                if (role == "Admin")
                 {
-                    if (teacher.SupervisorId.HasValue)
-                    {
-                        var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(teacher.SupervisorId.Value);
-                        teacher.Supervisor = supervisor;
-                    }
-                }
 
+                    var supervisor = await _unitOfWork.Repository<Supervisor>().Query().Where(s => s.UserId == currentUserId).FirstOrDefaultAsync();
+
+                    teachers = await _unitOfWork
+                        .Repository<Teacher>().Query().Where(x => x.SupervisorId == supervisor.Id).Include(x => x.Supervisor).ToListAsync();
+
+                }
+                else
+                {
+                    teachers = await _unitOfWork
+                                     .Repository<Teacher>()
+                                     .Query()
+                                     .Include(t => t.Supervisor)
+                                     .ToListAsync();
+                }
                 var totalCount = teachers.Count();
                 var paginatedTeachers = teachers
                     .Skip((pageNumber - 1) * pageSize)
@@ -84,9 +89,9 @@ namespace BilQalaam.Application.Services
         }
 
         public async Task<(IEnumerable<TeacherResponseDto>, int)> GetBySupervisorIdsAsync(
-    IEnumerable<int> supervisorIds,
-    int pageNumber,
-    int pageSize)
+        IEnumerable<int> supervisorIds,
+        int pageNumber,
+        int pageSize)
         {
             try
             {
@@ -294,5 +299,6 @@ namespace BilQalaam.Application.Services
                 throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Õ–› «·„⁄·„: {ex.Message}" });
             }
         }
+
     }
 }

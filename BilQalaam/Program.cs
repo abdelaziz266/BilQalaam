@@ -129,52 +129,29 @@ var app = builder.Build();
 // =====================
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<BilQalaamDbContext>();
-    dbContext.Database.Migrate();
-
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-
-    const string superAdminEmail = "superadmin@bilqalaam.com";
-    const string superAdminPassword = "Aa@12345#";
-    const string superAdminRole = "SuperAdmin";
-
-    if (!await roleManager.RoleExistsAsync(superAdminRole))
+    try
     {
-        await roleManager.CreateAsync(new IdentityRole(superAdminRole));
+        var dbContext = scope.ServiceProvider.GetRequiredService<BilQalaamDbContext>();
+        dbContext.Database.Migrate();
     }
-
-    var superAdminUser = await userManager.FindByEmailAsync(superAdminEmail);
-    if (superAdminUser == null)
+    catch (Exception ex)
     {
-        superAdminUser = new ApplicationUser
-        {
-            UserName = superAdminEmail,
-            Email = superAdminEmail,
-            FullName = "Super Admin",
-            Role = BilQalaam.Domain.Enums.UserRole.SuperAdmin,
-            EmailConfirmed = true,
-            PhoneNumber = "0000000000"
-        };
-
-        var result = await userManager.CreateAsync(superAdminUser, superAdminPassword);
-        if (result.Succeeded)
-        {
-            await userManager.AddToRoleAsync(superAdminUser, superAdminRole);
-        }
+        Console.WriteLine(ex.Message);
     }
 }
+
 
 // =====================
 // Middleware
 // =====================
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
 
-app.UseHttpsRedirection();
+app.UseSwagger();
+    app.UseSwaggerUI();
+
+if (!app.Environment.IsProduction())
+{
+    app.UseHttpsRedirection();
+}
 
 // 🔥 Exception Handler Middleware (قبل CORS)
 app.UseMiddleware<ExceptionHandlerMiddleware>();

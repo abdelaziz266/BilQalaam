@@ -28,6 +28,10 @@ namespace BilQalaam.Api.Controllers
             return User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? throw new UnauthorizedAccessException("User not authenticated");
         }
+        private string GetCurrentUserRole()
+        {
+            return User.FindFirstValue(ClaimTypes.Role) ?? "";
+        }
 
         // ? GET: api/Teachers/get
         [HttpGet("get")]
@@ -35,8 +39,10 @@ namespace BilQalaam.Api.Controllers
         {
             if (pageNumber < 1) pageNumber = 1;
             if (pageSize < 1) pageSize = 10;
+            var currentUserId = GetCurrentUserId();
+            var role = GetCurrentUserRole();
 
-            var (teachers, totalCount) = await _teacherService.GetAllAsync(pageNumber, pageSize);
+            var (teachers, totalCount) = await _teacherService.GetAllAsync(currentUserId, role, pageNumber, pageSize);
             var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
 
             var paginatedResponse = new PaginatedResponseDto<TeacherResponseDto>

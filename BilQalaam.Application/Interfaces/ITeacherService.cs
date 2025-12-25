@@ -4,7 +4,7 @@ namespace BilQalaam.Application.Interfaces
 {
     public interface ITeacherService
     {
-        Task<(IEnumerable<TeacherResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10);
+        Task<(IEnumerable<TeacherResponseDto>, int)> GetAllAsync(string currentUserId,string role, int pageNumber = 1, int pageSize = 10);
         Task<TeacherResponseDto?> GetByIdAsync(int id);
         Task<(IEnumerable<TeacherResponseDto>, int)> GetBySupervisorIdsAsync(
             IEnumerable<int> supervisorIds,
