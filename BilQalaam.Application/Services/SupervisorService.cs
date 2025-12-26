@@ -202,6 +202,15 @@ namespace BilQalaam.Application.Services
                 if (supervisor == null)
                     return Result<bool>.Failure(new List<string> { "المشرف غير موجود" });
 
+                var user = await _userManager.FindByIdAsync(supervisor.UserId);
+                if (user != null)
+                {
+                    user.IsDeleted = true;
+                    user.DeletedAt = DateTime.UtcNow;
+                    user.DeletedBy = id.ToString();
+                    await _userManager.UpdateAsync(user);
+                }
+
                 // 🗑️ Soft Delete - تحديث العلامات بدل الحذف الفعلي
                 supervisor.IsDeleted = true;
                 supervisor.DeletedAt = DateTime.UtcNow;

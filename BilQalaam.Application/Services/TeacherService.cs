@@ -1,14 +1,13 @@
 using AutoMapper;
-using BilQalaam.Application.DTOs.Families;
+using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.DTOs.Teachers;
-using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
+using BilQalaam.Application.Results;
 using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
 using BilQalaam.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 namespace BilQalaam.Application.Services
 {
@@ -31,106 +30,116 @@ namespace BilQalaam.Application.Services
             _roleManager = roleManager;
         }
 
-        public async Task<(IEnumerable<TeacherResponseDto>, int)> GetAllAsync(string currentUserId, string role, int pageNumber = 1, int pageSize = 10)
+        public async Task<Result<PaginatedResponseDto<TeacherResponseDto>>> GetAllAsync(
+            int pageNumber,
+            int pageSize,
+            string role,
+            string userId)
         {
             try
             {
-                List<Teacher> teachers = new();
-                if (role == "Admin")
-                {
-
-                    var supervisor = await _unitOfWork.Repository<Supervisor>().Query().Where(s => s.UserId == currentUserId).FirstOrDefaultAsync();
-
-                    teachers = await _unitOfWork
-                        .Repository<Teacher>().Query().Where(x => x.SupervisorId == supervisor.Id).Include(x => x.Supervisor).ToListAsync();
-
-                }
-                else
-                {
-                    teachers = await _unitOfWork
-                                     .Repository<Teacher>()
-                                     .Query()
-                                     .Include(t => t.Supervisor)
-                                     .ToListAsync();
-                }
-                var totalCount = teachers.Count();
-                var paginatedTeachers = teachers
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize);
-
-                return (_mapper.Map<IEnumerable<TeacherResponseDto>>(paginatedTeachers), totalCount);
-            }
-            catch (Exception ex)
-            {
-                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» «·„⁄·„Ì‰: {ex.Message}" });
-            }
-        }
-
-        public async Task<TeacherResponseDto?> GetByIdAsync(int id)
-        {
-            try
-            {
-                var teacher = await _unitOfWork
-                    .Repository<Teacher>()
-                    .GetByIdAsync(id);
-
-                if (teacher != null && teacher.SupervisorId.HasValue)
-                {
-                    var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(teacher.SupervisorId.Value);
-                    teacher.Supervisor = supervisor;
-                }
-
-                return teacher == null ? null : _mapper.Map<TeacherResponseDto>(teacher);
-            }
-            catch (Exception ex)
-            {
-                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» «·„⁄·„: {ex.Message}" });
-            }
-        }
-
-        public async Task<(IEnumerable<TeacherResponseDto>, int)> GetBySupervisorIdsAsync(
-        IEnumerable<int> supervisorIds,
-        int pageNumber,
-        int pageSize)
-        {
-            try
-            {
-                var query = _unitOfWork
+                IQueryable<Teacher> query = _unitOfWork
                     .Repository<Teacher>()
                     .Query()
-                    .Include(t => t.Supervisor)
-                    .Where(t => t.SupervisorId.HasValue &&
-                                supervisorIds.Contains(t.SupervisorId.Value));
-                var totalCount = await query.CountAsync();
+                    .Include(t => t.Supervisor);
 
+                // Admin Ì‘Ê› «·„⁄·„Ì‰ «·„— »ÿÌ‰ »Â ›ﬁÿ
+                if (role == "Admin")
+                {
+                    var supervisor = await GetSupervisorByUserId(userId);
+                    if (supervisor == null)
+                        return Result<PaginatedResponseDto<TeacherResponseDto>>.Success(EmptyPaginatedResponse(pageNumber, pageSize));
+
+                    query = query.Where(t => t.SupervisorId == supervisor.Id);
+                }
+
+                var totalCount = await query.CountAsync();
                 var teachers = await query
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
                     .ToListAsync();
 
-                return (_mapper.Map<IEnumerable<TeacherResponseDto>>(teachers), totalCount);
+                var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+                return Result<PaginatedResponseDto<TeacherResponseDto>>.Success(new PaginatedResponseDto<TeacherResponseDto>
+                {
+                    Items = _mapper.Map<IEnumerable<TeacherResponseDto>>(teachers),
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    PagesCount = pagesCount
+                });
             }
             catch (Exception ex)
             {
-                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Ã·» „⁄·„Ì «·„‘—›Ì‰: {ex.Message}" });
+                return Result<PaginatedResponseDto<TeacherResponseDto>>.Failure($"Œÿ√ ›Ì Ã·» «·„⁄·„Ì‰: {ex.Message}");
             }
         }
 
-        public async Task<int> CreateAsync(CreateTeacherDto dto, string createdByUserId)
+        public async Task<Result<TeacherResponseDto>> GetByIdAsync(int id, string role, string userId)
+        {
+            try
+            {
+                var teacher = await _unitOfWork
+                    .Repository<Teacher>()
+                    .Query()
+                    .Include(t => t.Supervisor)
+                    .FirstOrDefaultAsync(t => t.Id == id);
+
+                if (teacher == null)
+                    return Result<TeacherResponseDto>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
+
+                // Admin Ì‘Ê› «·„⁄·„Ì‰ «·„— »ÿÌ‰ »Â ›ﬁÿ
+                if (role == "Admin")
+                {
+                    var supervisor = await GetSupervisorByUserId(userId);
+                    if (supervisor == null || teacher.SupervisorId != supervisor.Id)
+                        return Result<TeacherResponseDto>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
+                }
+
+                return Result<TeacherResponseDto>.Success(_mapper.Map<TeacherResponseDto>(teacher));
+            }
+            catch (Exception ex)
+            {
+                return Result<TeacherResponseDto>.Failure($"Œÿ√ ›Ì Ã·» «·„⁄·„: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<int>> CreateAsync(CreateTeacherDto dto, string role, string userId)
         {
             using var transaction = await _unitOfWork.BeginTransactionAsync();
 
             try
             {
                 // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «·«Ì„Ì·
-                var existingUserByEmail = await _userManager.FindByEmailAsync(dto.Email);
+                var existingUserByEmail = await _userManager.Users
+                    .FirstOrDefaultAsync(u => u.Email == dto.Email && !u.IsDeleted);
                 if (existingUserByEmail != null)
-                    throw new ValidationException(new List<string> { "«·»—Ìœ «·≈·ﬂ —Ê‰Ì „” Œœ„ »«·›⁄·" });
+                {
+                    await transaction.RollbackAsync();
+                    return Result<int>.Failure("«·»—Ìœ «·≈·ﬂ —Ê‰Ì „” Œœ„ »«·›⁄·");
+                }
 
                 // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «”„ «·„⁄·„
                 var teachers = await _unitOfWork.Repository<Teacher>().FindAsync(t => t.TeacherName == dto.FullName);
                 if (teachers.Any())
-                    throw new ValidationException(new List<string> { "«”„ «·„⁄·„ „” Œœ„ »«·›⁄·" });
+                {
+                    await transaction.RollbackAsync();
+                    return Result<int>.Failure("«”„ «·„⁄·„ „” Œœ„ »«·›⁄·");
+                }
+
+                //  ÕœÌœ SupervisorId Õ”» «·‹ Role
+                int? supervisorId = dto.SupervisorId;
+                if (role == "Admin")
+                {
+                    var supervisor = await GetSupervisorByUserId(userId);
+                    if (supervisor == null)
+                    {
+                        await transaction.RollbackAsync();
+                        return Result<int>.Failure("·„ Ì „ «·⁄ÀÊ— ⁄·Ï »Ì«‰«  «·„‘—›");
+                    }
+                    supervisorId = supervisor.Id;
+                }
 
                 var user = new ApplicationUser
                 {
@@ -146,7 +155,8 @@ namespace BilQalaam.Application.Services
                 if (!result.Succeeded)
                 {
                     var errors = result.Errors.Select(e => e.Description).ToList();
-                    throw new ValidationException(errors);
+                    await transaction.RollbackAsync();
+                    return Result<int>.Failure(errors);
                 }
 
                 const string roleName = "Teacher";
@@ -160,47 +170,42 @@ namespace BilQalaam.Application.Services
                     TeacherName = dto.FullName,
                     PhoneNumber = dto.PhoneNumber,
                     Email = dto.Email,
-                    SupervisorId = dto.SupervisorId,
+                    SupervisorId = supervisorId,
                     HourlyRate = dto.HourlyRate,
                     Currency = dto.Currency,
                     UserId = user.Id,
                     CreatedAt = DateTime.UtcNow,
-                    CreatedBy = createdByUserId
+                    CreatedBy = userId
                 };
 
                 await _unitOfWork.Repository<Teacher>().AddAsync(teacher);
                 await _unitOfWork.CompleteAsync();
-
                 await transaction.CommitAsync();
 
-                return teacher.Id;
-            }
-            catch (ValidationException)
-            {
-                await transaction.RollbackAsync();
-                throw;
+                return Result<int>.Success(teacher.Id);
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì ≈‰‘«¡ «·„⁄·„: {ex.Message}" });
+                return Result<int>.Failure($"Œÿ√ ›Ì ≈‰‘«¡ «·„⁄·„: {ex.Message}");
             }
         }
 
-        public async Task<bool> UpdateAsync(int id, UpdateTeacherDto dto, string updatedByUserId)
+        public async Task<Result<bool>> UpdateAsync(int id, UpdateTeacherDto dto, string userId)
         {
             try
             {
                 var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(id);
-                if (teacher == null) return false;
+                if (teacher == null)
+                    return Result<bool>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
 
-                // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «”„ «·„⁄·„ (≈–«  „  €ÌÌ—Â)
+                // «· Õﬁﬁ „‰ ⁄œ„  ﬂ—«— «”„ «·„⁄·„
                 if (teacher.TeacherName != dto.FullName)
                 {
                     var existingTeacher = await _unitOfWork.Repository<Teacher>()
                         .FindAsync(t => t.TeacherName == dto.FullName && t.Id != id);
                     if (existingTeacher.Any())
-                        throw new ValidationException(new List<string> { "«”„ «·„⁄·„ „” Œœ„ »«·›⁄·" });
+                        return Result<bool>.Failure("«”„ «·„⁄·„ „” Œœ„ »«·›⁄·");
                 }
 
                 teacher.TeacherName = dto.FullName;
@@ -209,7 +214,7 @@ namespace BilQalaam.Application.Services
                 teacher.HourlyRate = dto.HourlyRate;
                 teacher.Currency = dto.Currency;
                 teacher.UpdatedAt = DateTime.UtcNow;
-                teacher.UpdatedBy = updatedByUserId;
+                teacher.UpdatedBy = userId;
 
                 var user = await _userManager.FindByIdAsync(teacher.UserId);
                 if (user != null)
@@ -222,17 +227,11 @@ namespace BilQalaam.Application.Services
                     {
                         var removeResult = await _userManager.RemovePasswordAsync(user);
                         if (!removeResult.Succeeded)
-                        {
-                            var errors = removeResult.Errors.Select(e => e.Description).ToList();
-                            throw new ValidationException(errors);
-                        }
+                            return Result<bool>.Failure(removeResult.Errors.Select(e => e.Description).ToList());
 
                         var addResult = await _userManager.AddPasswordAsync(user, dto.Password);
                         if (!addResult.Succeeded)
-                        {
-                            var errors = addResult.Errors.Select(e => e.Description).ToList();
-                            throw new ValidationException(errors);
-                        }
+                            return Result<bool>.Failure(addResult.Errors.Select(e => e.Description).ToList());
                     }
 
                     await _userManager.UpdateAsync(user);
@@ -241,34 +240,31 @@ namespace BilQalaam.Application.Services
                 _unitOfWork.Repository<Teacher>().Update(teacher);
                 await _unitOfWork.CompleteAsync();
 
-                return true;
-            }
-            catch (ValidationException)
-            {
-                throw;
-            }
-            catch (InvalidOperationException ex) when (ex.InnerException is Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
-            {
-                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
-            }
-            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
-            {
-                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
+                return Result<bool>.Success(true);
             }
             catch (Exception ex)
             {
-                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì  ÕœÌÀ «·„⁄·„: {ex.Message}" });
+                return Result<bool>.Failure($"Œÿ√ ›Ì  ÕœÌÀ «·„⁄·„: {ex.Message}");
             }
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        public async Task<Result<bool>> DeleteAsync(int id)
         {
             try
             {
                 var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(id);
-                if (teacher == null) return false;
+                if (teacher == null)
+                    return Result<bool>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
 
-                // ??? Soft Delete
+                var teacherUser = await _userManager.FindByIdAsync(teacher.UserId);
+                if (teacherUser != null)
+                {
+                    teacherUser.IsDeleted = true;
+                    teacherUser.DeletedAt = DateTime.UtcNow;
+                    teacherUser.DeletedBy = id.ToString();
+                    await _userManager.UpdateAsync(teacherUser);
+                }
+
                 teacher.IsDeleted = true;
                 teacher.DeletedAt = DateTime.UtcNow;
                 teacher.DeletedBy = id.ToString();
@@ -276,29 +272,83 @@ namespace BilQalaam.Application.Services
                 _unitOfWork.Repository<Teacher>().Update(teacher);
                 await _unitOfWork.CompleteAsync();
 
-                return true;
-            }
-            catch (ValidationException)
-            {
-                throw;
-            }
-            catch (InvalidOperationException ex) when (ex.InnerException is Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
-            {
-                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
-            }
-            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
-            {
-                throw new ValidationException(new List<string> { "«·»Ì«‰«   „  ⁄œÌ·Â« „‰ ﬁ»· „” Œœ„ ¬Œ—. Ì—ÃÏ ≈⁄«œ… «·„Õ«Ê·…." });
-            }
-            catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException?.Message.Contains("FOREIGN KEY") == true)
-            {
-                throw new ValidationException(new List<string> { "·« Ì„ﬂ‰ Õ–› Â–« «·„⁄·„ ·√‰Â „— »ÿ »»Ì«‰«  √Œ—Ï." });
+                return Result<bool>.Success(true);
             }
             catch (Exception ex)
             {
-                throw new ValidationException(new List<string> { $"Œÿ√ ›Ì Õ–› «·„⁄·„: {ex.Message}" });
+                return Result<bool>.Failure($"Œÿ√ ›Ì Õ–› «·„⁄·„: {ex.Message}");
             }
         }
 
+        /// <summary>
+        /// Get teachers by family ID (same supervisor)
+        /// </summary>
+        public async Task<Result<PaginatedResponseDto<TeacherResponseDto>>> GetByFamilyIdAsync(
+            int familyId,
+            int pageNumber,
+            int pageSize)
+        {
+            try
+            {
+                // ÃÌ» «·‹ Family
+                var family = await _unitOfWork.Repository<Family>().GetByIdAsync(familyId);
+                if (family == null)
+                    return Result<PaginatedResponseDto<TeacherResponseDto>>.Failure("«·⁄«∆·… €Ì— „ÊÃÊœ…");
+
+                // ·Ê „›Ì‘ Supervisor „—»Êÿ
+                if (!family.SupervisorId.HasValue)
+                    return Result<PaginatedResponseDto<TeacherResponseDto>>.Success(EmptyPaginatedResponse(pageNumber, pageSize));
+
+                // ÃÌ» ﬂ· «·‹ Teachers «·„— »ÿÌ‰ »‰›” «·‹ Supervisor
+                var query = _unitOfWork
+                    .Repository<Teacher>()
+                    .Query()
+                    .Include(t => t.Supervisor)
+                    .Where(t => t.SupervisorId == family.SupervisorId);
+
+                var totalCount = await query.CountAsync();
+                var teachers = await query
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+                return Result<PaginatedResponseDto<TeacherResponseDto>>.Success(new PaginatedResponseDto<TeacherResponseDto>
+                {
+                    Items = _mapper.Map<IEnumerable<TeacherResponseDto>>(teachers),
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    PagesCount = pagesCount
+                });
+            }
+            catch (Exception ex)
+            {
+                return Result<PaginatedResponseDto<TeacherResponseDto>>.Failure($"Œÿ√ ›Ì Ã·» «·„⁄·„Ì‰: {ex.Message}");
+            }
+        }
+
+        #region Private Helpers
+
+        private async Task<Supervisor?> GetSupervisorByUserId(string userId)
+        {
+            var supervisors = await _unitOfWork.Repository<Supervisor>().FindAsync(s => s.UserId == userId);
+            return supervisors.FirstOrDefault();
+        }
+
+        private static PaginatedResponseDto<TeacherResponseDto> EmptyPaginatedResponse(int pageNumber, int pageSize)
+        {
+            return new PaginatedResponseDto<TeacherResponseDto>
+            {
+                Items = new List<TeacherResponseDto>(),
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = 0,
+                PagesCount = 0
+            };
+        }
+
+        #endregion
     }
 }

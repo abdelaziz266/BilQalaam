@@ -1,18 +1,32 @@
+using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.DTOs.Families;
+using BilQalaam.Application.DTOs.Teachers;
 using BilQalaam.Application.Results;
 
 namespace BilQalaam.Application.Interfaces
 {
     public interface IFamilyService
     {
-        Task<(IEnumerable<FamilyResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10);
-        Task<FamilyResponseDto?> GetByIdAsync(int id);
-        Task<Result<int>> CreateAsync(CreateFamilyDto dto, string createdByUserId);
-        Task<Result<bool>> UpdateAsync(int id, UpdateFamilyDto dto, string updatedByUserId);
+        Task<Result<PaginatedResponseDto<FamilyResponseDto>>> GetAllAsync(
+            int pageNumber,
+            int pageSize,
+            string role,
+            string userId);
+
+        Task<Result<FamilyResponseDto>> GetByIdAsync(int id, string role, string userId);
+
+        Task<Result<int>> CreateAsync(CreateFamilyDto dto, string role, string userId);
+
+        Task<Result<bool>> UpdateAsync(int id, UpdateFamilyDto dto, string userId);
+
         Task<Result<bool>> DeleteAsync(int id);
-        Task<(IEnumerable<FamilyResponseDto>, int)> GetBySupervisorIdsAsync(
-    IEnumerable<int> supervisorIds,
-    int pageNumber,
-    int pageSize);
+
+        /// <summary>
+        /// Get families by teacher ID (same supervisor)
+        /// </summary>
+        Task<Result<PaginatedResponseDto<FamilyResponseDto>>> GetByTeacherIdAsync(
+            int teacherId,
+            int pageNumber,
+            int pageSize);
     }
 }

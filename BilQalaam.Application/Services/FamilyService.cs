@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
+using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.DTOs.Families;
-using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
 using BilQalaam.Application.Results;
 using BilQalaam.Application.UnitOfWork;
@@ -19,7 +19,7 @@ namespace BilQalaam.Application.Services
         private readonly RoleManager<IdentityRole> _roleManager;
 
         public FamilyService(
-            IUnitOfWork unitOfWork, 
+            IUnitOfWork unitOfWork,
             IMapper mapper,
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager)
@@ -30,100 +30,94 @@ namespace BilQalaam.Application.Services
             _roleManager = roleManager;
         }
 
-        public async Task<(IEnumerable<FamilyResponseDto>, int)> GetAllAsync(int pageNumber = 1, int pageSize = 10)
+        public async Task<Result<PaginatedResponseDto<FamilyResponseDto>>> GetAllAsync(
+            int pageNumber,
+            int pageSize,
+            string role,
+            string userId)
         {
             try
             {
-                var families = await _unitOfWork
-                    .Repository<Family>()
-                    .GetAllAsync();
-
-                // 🔄 تحميل Supervisor للعائلات
-                foreach (var family in families)
-                {
-                    if (family.SupervisorId.HasValue)
-                    {
-                        var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(family.SupervisorId.Value);
-                        family.Supervisor = supervisor;
-                    }
-                }
-
-                var totalCount = families.Count();
-                var paginatedFamilies = families
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize);
-
-                return (_mapper.Map<IEnumerable<FamilyResponseDto>>(paginatedFamilies), totalCount);
-            }
-            catch (Exception ex)
-            {
-                throw new ValidationException(new List<string> { $"خطأ في جلب العائلات: {ex.Message}" });
-            }
-        }
-
-        public async Task<FamilyResponseDto?> GetByIdAsync(int id)
-        {
-            try
-            {
-                var family = await _unitOfWork
-                    .Repository<Family>()
-                    .GetByIdAsync(id);
-
-                if (family != null && family.SupervisorId.HasValue)
-                {
-                    var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(family.SupervisorId.Value);
-                    family.Supervisor = supervisor;
-                }
-
-                return family == null ? null : _mapper.Map<FamilyResponseDto>(family);
-            }
-            catch (Exception ex)
-            {
-                throw new ValidationException(new List<string> { $"خطأ في جلب العائلة: {ex.Message}" });
-            }
-        }
-
-        public async Task<(IEnumerable<FamilyResponseDto>, int)> GetBySupervisorIdsAsync(
-    IEnumerable<int> supervisorIds,
-    int pageNumber,
-    int pageSize)
-        {
-            try
-            {
-                var query = _unitOfWork
+                IQueryable<Family> query = _unitOfWork
                     .Repository<Family>()
                     .Query()
-                    .Include(f => f.Supervisor)
-                    .Where(f => f.SupervisorId.HasValue &&
-                                supervisorIds.Contains(f.SupervisorId.Value));
+                    .Include(f => f.Supervisor);
+
+                // Admin يشوف العائلات المرتبطة به فقط
+                if (role == "Admin")
+                {
+                    var supervisor = await GetSupervisorByUserId(userId);
+                    if (supervisor == null)
+                        return Result<PaginatedResponseDto<FamilyResponseDto>>.Success(EmptyPaginatedResponse(pageNumber, pageSize));
+
+                    query = query.Where(f => f.SupervisorId == supervisor.Id);
+                }
 
                 var totalCount = await query.CountAsync();
-
                 var families = await query
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
                     .ToListAsync();
 
-                return (_mapper.Map<IEnumerable<FamilyResponseDto>>(families), totalCount);
+                var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+                return Result<PaginatedResponseDto<FamilyResponseDto>>.Success(new PaginatedResponseDto<FamilyResponseDto>
+                {
+                    Items = _mapper.Map<IEnumerable<FamilyResponseDto>>(families),
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    PagesCount = pagesCount
+                });
             }
             catch (Exception ex)
             {
-                throw new ValidationException(new List<string> { $"خطأ في جلب عائلات المشرفين: {ex.Message}" });
+                return Result<PaginatedResponseDto<FamilyResponseDto>>.Failure($"خطأ في جلب العائلات: {ex.Message}");
             }
         }
 
-        public async Task<Result<int>> CreateAsync(CreateFamilyDto dto, string createdByUserId)
+        public async Task<Result<FamilyResponseDto>> GetByIdAsync(int id, string role, string userId)
+        {
+            try
+            {
+                var family = await _unitOfWork
+                    .Repository<Family>()
+                    .Query()
+                    .Include(f => f.Supervisor)
+                    .FirstOrDefaultAsync(f => f.Id == id);
+
+                if (family == null)
+                    return Result<FamilyResponseDto>.Failure("العائلة غير موجودة");
+
+                // Admin يشوف العائلات المرتبطة به فقط
+                if (role == "Admin")
+                {
+                    var supervisor = await GetSupervisorByUserId(userId);
+                    if (supervisor == null || family.SupervisorId != supervisor.Id)
+                        return Result<FamilyResponseDto>.Failure("العائلة غير موجودة");
+                }
+
+                return Result<FamilyResponseDto>.Success(_mapper.Map<FamilyResponseDto>(family));
+            }
+            catch (Exception ex)
+            {
+                return Result<FamilyResponseDto>.Failure($"خطأ في جلب العائلة: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<int>> CreateAsync(CreateFamilyDto dto, string role, string userId)
         {
             using var transaction = await _unitOfWork.BeginTransactionAsync();
-            
+
             try
             {
                 // التحقق من عدم تكرار الايميل
-                var existingUserByEmail = await _userManager.FindByEmailAsync(dto.Email);
+                var existingUserByEmail = await _userManager.Users
+                    .FirstOrDefaultAsync(u => u.Email == dto.Email && !u.IsDeleted);
                 if (existingUserByEmail != null)
                 {
                     await transaction.RollbackAsync();
-                    return Result<int>.Failure(new List<string> { "البريد الإلكتروني مستخدم بالفعل" });
+                    return Result<int>.Failure("البريد الإلكتروني مستخدم بالفعل");
                 }
 
                 // التحقق من عدم تكرار اسم العائلة
@@ -131,7 +125,20 @@ namespace BilQalaam.Application.Services
                 if (families.Any())
                 {
                     await transaction.RollbackAsync();
-                    return Result<int>.Failure(new List<string> { "اسم العائلة مستخدم بالفعل" });
+                    return Result<int>.Failure("اسم العائلة مستخدم بالفعل");
+                }
+
+                // تحديد SupervisorId حسب الـ Role
+                int? supervisorId = dto.SupervisorId;
+                if (role == "Admin")
+                {
+                    var supervisor = await GetSupervisorByUserId(userId);
+                    if (supervisor == null)
+                    {
+                        await transaction.RollbackAsync();
+                        return Result<int>.Failure("لم يتم العثور على بيانات المشرف");
+                    }
+                    supervisorId = supervisor.Id;
                 }
 
                 var user = new ApplicationUser
@@ -164,17 +171,16 @@ namespace BilQalaam.Application.Services
                     PhoneNumber = dto.PhoneNumber,
                     Country = dto.Country,
                     Email = dto.Email,
-                    SupervisorId = dto.SupervisorId,
+                    SupervisorId = supervisorId,
                     HourlyRate = dto.HourlyRate,
                     Currency = dto.Currency,
                     UserId = user.Id,
                     CreatedAt = DateTime.UtcNow,
-                    CreatedBy = createdByUserId
+                    CreatedBy = userId
                 };
 
                 await _unitOfWork.Repository<Family>().AddAsync(family);
                 await _unitOfWork.CompleteAsync();
-
                 await transaction.CommitAsync();
 
                 return Result<int>.Success(family.Id);
@@ -182,25 +188,25 @@ namespace BilQalaam.Application.Services
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                return Result<int>.Failure(new List<string> { $"خطأ في إنشاء العائلة: {ex.Message}" });
+                return Result<int>.Failure($"خطأ في إنشاء العائلة: {ex.Message}");
             }
         }
 
-        public async Task<Result<bool>> UpdateAsync(int id, UpdateFamilyDto dto, string updatedByUserId)
+        public async Task<Result<bool>> UpdateAsync(int id, UpdateFamilyDto dto, string userId)
         {
             try
             {
                 var family = await _unitOfWork.Repository<Family>().GetByIdAsync(id);
                 if (family == null)
-                    return Result<bool>.Failure(new List<string> { "العائلة غير موجودة" });
+                    return Result<bool>.Failure("العائلة غير موجودة");
 
-                // التحقق من عدم تكرار اسم العائلة (إذا تم تغييره)
+                // التحقق من عدم تكرار اسم العائلة
                 if (family.FamilyName != dto.FullName)
                 {
                     var existingFamily = await _unitOfWork.Repository<Family>()
                         .FindAsync(f => f.FamilyName == dto.FullName && f.Id != id);
                     if (existingFamily.Any())
-                        return Result<bool>.Failure(new List<string> { "اسم العائلة مستخدم بالفعل" });
+                        return Result<bool>.Failure("اسم العائلة مستخدم بالفعل");
                 }
 
                 family.FamilyName = dto.FullName;
@@ -210,7 +216,7 @@ namespace BilQalaam.Application.Services
                 family.HourlyRate = dto.HourlyRate;
                 family.Currency = dto.Currency;
                 family.UpdatedAt = DateTime.UtcNow;
-                family.UpdatedBy = updatedByUserId;
+                family.UpdatedBy = userId;
 
                 var user = await _userManager.FindByIdAsync(family.UserId);
                 if (user != null)
@@ -223,17 +229,11 @@ namespace BilQalaam.Application.Services
                     {
                         var removeResult = await _userManager.RemovePasswordAsync(user);
                         if (!removeResult.Succeeded)
-                        {
-                            var errors = removeResult.Errors.Select(e => e.Description).ToList();
-                            return Result<bool>.Failure(errors);
-                        }
+                            return Result<bool>.Failure(removeResult.Errors.Select(e => e.Description).ToList());
 
                         var addResult = await _userManager.AddPasswordAsync(user, dto.Password);
                         if (!addResult.Succeeded)
-                        {
-                            var errors = addResult.Errors.Select(e => e.Description).ToList();
-                            return Result<bool>.Failure(errors);
-                        }
+                            return Result<bool>.Failure(addResult.Errors.Select(e => e.Description).ToList());
                     }
 
                     await _userManager.UpdateAsync(user);
@@ -246,7 +246,7 @@ namespace BilQalaam.Application.Services
             }
             catch (Exception ex)
             {
-                return Result<bool>.Failure(new List<string> { $"خطأ في تحديث العائلة: {ex.Message}" });
+                return Result<bool>.Failure($"خطأ في تحديث العائلة: {ex.Message}");
             }
         }
 
@@ -256,12 +256,20 @@ namespace BilQalaam.Application.Services
             {
                 var family = await _unitOfWork.Repository<Family>().GetByIdAsync(id);
                 if (family == null)
-                    return Result<bool>.Failure(new List<string> { "العائلة غير موجودة" });
+                    return Result<bool>.Failure("العائلة غير موجودة");
 
-                // 🗑️ Soft Delete
                 family.IsDeleted = true;
                 family.DeletedAt = DateTime.UtcNow;
                 family.DeletedBy = id.ToString();
+
+                var familyUser = await _userManager.FindByIdAsync(family.UserId);
+                if (familyUser != null)
+                {
+                    familyUser.IsDeleted = true;
+                    familyUser.DeletedAt = DateTime.UtcNow;
+                    familyUser.DeletedBy = id.ToString();
+                    await _userManager.UpdateAsync(familyUser);
+                }
 
                 _unitOfWork.Repository<Family>().Update(family);
                 await _unitOfWork.CompleteAsync();
@@ -270,8 +278,79 @@ namespace BilQalaam.Application.Services
             }
             catch (Exception ex)
             {
-                return Result<bool>.Failure(new List<string> { $"خطأ في حذف العائلة: {ex.Message}" });
+                return Result<bool>.Failure($"خطأ في حذف العائلة: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Get families by teacher ID (same supervisor)
+        /// </summary>
+        public async Task<Result<PaginatedResponseDto<FamilyResponseDto>>> GetByTeacherIdAsync(
+            int teacherId,
+            int pageNumber,
+            int pageSize)
+        {
+            try
+            {
+                // جيب الـ Teacher
+                var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
+                if (teacher == null)
+                    return Result<PaginatedResponseDto<FamilyResponseDto>>.Failure("المعلم غير موجود");
+
+                // لو مفيش Supervisor مربوط
+                if (!teacher.SupervisorId.HasValue)
+                    return Result<PaginatedResponseDto<FamilyResponseDto>>.Success(EmptyPaginatedResponse(pageNumber, pageSize));
+
+                // جيب كل الـ Families المرتبطة بنفس الـ Supervisor
+                var query = _unitOfWork
+                    .Repository<Family>()
+                    .Query()
+                    .Include(f => f.Supervisor)
+                    .Where(f => f.SupervisorId == teacher.SupervisorId);
+
+                var totalCount = await query.CountAsync();
+                var families = await query
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+                return Result<PaginatedResponseDto<FamilyResponseDto>>.Success(new PaginatedResponseDto<FamilyResponseDto>
+                {
+                    Items = _mapper.Map<IEnumerable<FamilyResponseDto>>(families),
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    PagesCount = pagesCount
+                });
+            }
+            catch (Exception ex)
+            {
+                return Result<PaginatedResponseDto<FamilyResponseDto>>.Failure($"خطأ في جلب العائلات: {ex.Message}");
+            }
+        }
+
+        #region Private Helpers
+
+        private async Task<Supervisor?> GetSupervisorByUserId(string userId)
+        {
+            var supervisors = await _unitOfWork.Repository<Supervisor>().FindAsync(s => s.UserId == userId);
+            return supervisors.FirstOrDefault();
+        }
+
+        private static PaginatedResponseDto<FamilyResponseDto> EmptyPaginatedResponse(int pageNumber, int pageSize)
+        {
+            return new PaginatedResponseDto<FamilyResponseDto>
+            {
+                Items = new List<FamilyResponseDto>(),
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = 0,
+                PagesCount = 0
+            };
+        }
+
+        #endregion
     }
 }

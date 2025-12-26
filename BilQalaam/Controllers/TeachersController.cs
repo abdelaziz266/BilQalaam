@@ -1,9 +1,6 @@
 using BilQalaam.Application.DTOs.Common;
-using BilQalaam.Application.DTOs.Families;
 using BilQalaam.Application.DTOs.Teachers;
-using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
-using BilQalaam.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -22,156 +19,94 @@ namespace BilQalaam.Api.Controllers
             _teacherService = teacherService;
         }
 
-        // ?? Helper method ááÍÕæá Úáì User ID ÇáÍÇáí
-        private string GetCurrentUserId()
-        {
-            return User.FindFirstValue(ClaimTypes.NameIdentifier)
+        private string GetCurrentUserId() =>
+            User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? throw new UnauthorizedAccessException("User not authenticated");
-        }
-        private string GetCurrentUserRole()
-        {
-            return User.FindFirstValue(ClaimTypes.Role) ?? "";
-        }
 
-        // ? GET: api/Teachers/get
+        private string GetCurrentUserRole() =>
+            User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+
         [HttpGet("get")]
         public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {
             if (pageNumber < 1) pageNumber = 1;
             if (pageSize < 1) pageSize = 10;
-            var currentUserId = GetCurrentUserId();
-            var role = GetCurrentUserRole();
 
-            var (teachers, totalCount) = await _teacherService.GetAllAsync(currentUserId, role, pageNumber, pageSize);
-            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+            var result = await _teacherService.GetAllAsync(pageNumber, pageSize, GetCurrentUserRole(), GetCurrentUserId());
 
-            var paginatedResponse = new PaginatedResponseDto<TeacherResponseDto>
-            {
-                Items = teachers,
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                PagesCount = pagesCount
-            };
-
-            return Ok(ApiResponseDto<PaginatedResponseDto<TeacherResponseDto>>.Success(
-                paginatedResponse,
-                "Êã ÇÓÊÑÌÇÚ ÇáãÚáãíä ÈäÌÇÍ"
-            ));
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<PaginatedResponseDto<TeacherResponseDto>>.Success(result.Data!, "Êã ÇÓÊÑÌÇÚ ÇáãÚáãíä ÈäÌÇÍ"))
+                : BadRequest(ApiResponseDto<PaginatedResponseDto<TeacherResponseDto>>.Fail(result.Errors, "İÔá İí ÌáÈ ÇáãÚáãíä", 400));
         }
 
-        // ? GET: api/Teachers/get/{id}
         [HttpGet("get/{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var teacher = await _teacherService.GetByIdAsync(id);
-            return teacher == null
-                ? NotFound(ApiResponseDto<TeacherResponseDto>.Fail(
-                    new List<string> { "ÇáãÚáã ÛíÑ ãæÌæÏ" },
-                    "áã íÊã ÇáÚËæÑ Úáíå",
-                    404
-                ))
-                : Ok(ApiResponseDto<TeacherResponseDto>.Success(
-                    teacher,
-                    "Êã ÇÓÊÑÌÇÚ ÇáãÚáã ÈäÌÇÍ"
-                ));
+            var result = await _teacherService.GetByIdAsync(id, GetCurrentUserRole(), GetCurrentUserId());
+
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<TeacherResponseDto>.Success(result.Data!, "Êã ÇÓÊÑÌÇÚ ÇáãÚáã ÈäÌÇÍ"))
+                : NotFound(ApiResponseDto<TeacherResponseDto>.Fail(result.Errors, "áã íÊã ÇáÚËæÑ Úáíå", 404));
         }
 
-        // ? POST: api/Teachers/create
+        /// <summary>
+        /// Get teachers by family ID (same supervisor)
+        /// </summary>
+        [HttpGet("by-family/{familyId}")]
+        public async Task<IActionResult> GetByFamilyId(int familyId, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10000)
+        {
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            var result = await _teacherService.GetByFamilyIdAsync(familyId, pageNumber, pageSize);
+
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<PaginatedResponseDto<TeacherResponseDto>>.Success(result.Data!, "Êã ÇÓÊÑÌÇÚ ÇáãÚáãíä ÈäÌÇÍ"))
+                : BadRequest(ApiResponseDto<PaginatedResponseDto<TeacherResponseDto>>.Fail(result.Errors, "İÔá İí ÌáÈ ÇáãÚáãíä", 400));
+        }
+
         [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreateTeacherDto dto)
         {
             if (!ModelState.IsValid)
             {
-                var modelErrors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-
-                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "İÔá ÇáÊÍŞŞ ãä ÇáÈíÇäÇÊ", 400));
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                return BadRequest(ApiResponseDto<int>.Fail(errors, "İÔá ÇáÊÍŞŞ ãä ÇáÈíÇäÇÊ", 400));
             }
 
-            try
-            {
-                var currentUserId = GetCurrentUserId();
-                var id = await _teacherService.CreateAsync(dto, currentUserId);
-                return Ok(ApiResponseDto<int>.Success(id, "Êã ÅäÔÇÁ ÇáãÚáã ÈäÌÇÍ", 201));
-            }
-            catch (ValidationException ex)
-            {
-                return BadRequest(ApiResponseDto<int>.Fail(ex.Errors, "İÔá ÇáÊÍŞŞ ãä ÇáÈíÇäÇÊ", 400));
-            }
+            var result = await _teacherService.CreateAsync(dto, GetCurrentUserRole(), GetCurrentUserId());
+
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<int>.Success(result.Data, "Êã ÅäÔÇÁ ÇáãÚáã ÈäÌÇÍ", 201))
+                : BadRequest(ApiResponseDto<int>.Fail(result.Errors, "İÔá İí ÅäÔÇÁ ÇáãÚáã", 400));
         }
 
-        // ? PUT: api/Teachers/update/{id}
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateTeacherDto dto)
         {
             if (!ModelState.IsValid)
             {
-                var modelErrors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-
-                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "İÔá ÇáÊÍŞŞ ãä ÇáÈíÇäÇÊ", 400));
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                return BadRequest(ApiResponseDto<bool>.Fail(errors, "İÔá ÇáÊÍŞŞ ãä ÇáÈíÇäÇÊ", 400));
             }
 
-            var currentUserId = GetCurrentUserId();
-            var success = await _teacherService.UpdateAsync(id, dto, currentUserId);
-            return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Êã ÊÍÏíË ÇáãÚáã ÈäÌÇÍ"))
-                : NotFound(ApiResponseDto<bool>.Fail(
-                    new List<string> { "ÇáãÚáã ÛíÑ ãæÌæÏ" },
-                    "áã íÊã ÇáÚËæÑ Úáíå",
-                    404
-                ));
+            var result = await _teacherService.UpdateAsync(id, dto, GetCurrentUserId());
+
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<bool>.Success(result.Data, "Êã ÊÍÏíË ÇáãÚáã ÈäÌÇÍ"))
+                : BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "İÔá İí ÊÍÏíË ÇáãÚáã", 400));
         }
 
-        // ? DELETE: api/Teachers/delete/{id}
+        [Authorize(Roles = "SuperAdmin")]
         [HttpDelete("delete/{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var success = await _teacherService.DeleteAsync(id);
-            return success
-                ? Ok(ApiResponseDto<bool>.Success(true, "Êã ÍĞİ ÇáãÚáã ÈäÌÇÍ"))
-                : NotFound(ApiResponseDto<bool>.Fail(
-                    new List<string> { "ÇáãÚáã ÛíÑ ãæÌæÏ" },
-                    "áã íÊã ÇáÚËæÑ Úáíå",
-                    404
-                ));
-        }
-        [HttpGet("by-supervisors")]
-        public async Task<IActionResult> GetBySupervisors(
-            [FromQuery] IEnumerable<int> supervisorIds,
-            [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10000)
-        {
-            if (!supervisorIds.Any())
-                return BadRequest("SupervisorIds is required");
+            var result = await _teacherService.DeleteAsync(id);
 
-            if (pageNumber < 1) pageNumber = 1;
-            if (pageSize < 1) pageSize = 10;
-
-            var (teachers, totalCount) =
-                await _teacherService.GetBySupervisorIdsAsync(
-                    supervisorIds.Distinct(),
-                    pageNumber,
-                    pageSize);
-
-            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-            return Ok(ApiResponseDto<PaginatedResponseDto<TeacherResponseDto>>.Success(
-                new PaginatedResponseDto<TeacherResponseDto>
-                {
-                    Items = teachers,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize,
-                    TotalCount = totalCount,
-                    PagesCount = pagesCount
-                },
-                "Êã ÇÓÊÑÌÇÚ ãÚáãì ÇáãÔÑİíä ÈäÌÇÍ"
-            ));
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<bool>.Success(result.Data, "Êã ÍĞİ ÇáãÚáã ÈäÌÇÍ"))
+                : BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "İÔá İí ÍĞİ ÇáãÚáã", 400));
         }
     }
 }

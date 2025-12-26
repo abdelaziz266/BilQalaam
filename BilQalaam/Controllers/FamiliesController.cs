@@ -19,147 +19,94 @@ namespace BilQalaam.Api.Controllers
             _familyService = familyService;
         }
 
-        // ?? Helper method ··Õ’Ê· ⁄·Ï User ID «·Õ«·Ì
-        private string GetCurrentUserId()
-        {
-            return User.FindFirstValue(ClaimTypes.NameIdentifier) 
+        private string GetCurrentUserId() =>
+            User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? throw new UnauthorizedAccessException("User not authenticated");
-        }
 
-        // ? GET: api/Families/get
+        private string GetCurrentUserRole() =>
+            User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+
         [HttpGet("get")]
         public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {
             if (pageNumber < 1) pageNumber = 1;
             if (pageSize < 1) pageSize = 10;
 
-            var (families, totalCount) = await _familyService.GetAllAsync(pageNumber, pageSize);
-            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+            var result = await _familyService.GetAllAsync(pageNumber, pageSize, GetCurrentUserRole(), GetCurrentUserId());
 
-            var paginatedResponse = new PaginatedResponseDto<FamilyResponseDto>
-            {
-                Items = families,
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                PagesCount = pagesCount
-            };
-
-            return Ok(ApiResponseDto<PaginatedResponseDto<FamilyResponseDto>>.Success(
-                paginatedResponse,
-                " „ «” —Ã«⁄ «·⁄«∆·«  »‰Ã«Õ"
-            ));
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<PaginatedResponseDto<FamilyResponseDto>>.Success(result.Data!, " „ «” —Ã«⁄ «·⁄«∆·«  »‰Ã«Õ"))
+                : BadRequest(ApiResponseDto<PaginatedResponseDto<FamilyResponseDto>>.Fail(result.Errors, "›‘· ›Ì Ã·» «·⁄«∆·« ", 400));
         }
 
-        // ? GET: api/Families/get/{id}
         [HttpGet("get/{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var family = await _familyService.GetByIdAsync(id);
-            return family == null 
-                ? NotFound(ApiResponseDto<FamilyResponseDto>.Fail(
-                    new List<string> { "«·⁄«∆·… €Ì— „ÊÃÊœ…" },
-                    "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ«",
-                    404
-                ))
-                : Ok(ApiResponseDto<FamilyResponseDto>.Success(
-                    family,
-                    " „ «” —Ã«⁄ «·⁄«∆·… »‰Ã«Õ"
-                ));
+            var result = await _familyService.GetByIdAsync(id, GetCurrentUserRole(), GetCurrentUserId());
+
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<FamilyResponseDto>.Success(result.Data!, " „ «” —Ã«⁄ «·⁄«∆·… »‰Ã«Õ"))
+                : NotFound(ApiResponseDto<FamilyResponseDto>.Fail(result.Errors, "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ«", 404));
         }
 
-        // ? POST: api/Families/create
+        /// <summary>
+        /// Get families by teacher ID (same supervisor)
+        /// </summary>
+        [HttpGet("by-teacher/{teacherId}")]
+        public async Task<IActionResult> GetByTeacherId(int teacherId, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+        {
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            var result = await _familyService.GetByTeacherIdAsync(teacherId, pageNumber, pageSize);
+
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<PaginatedResponseDto<FamilyResponseDto>>.Success(result.Data!, " „ «” —Ã«⁄ «·⁄«∆·«  »‰Ã«Õ"))
+                : BadRequest(ApiResponseDto<PaginatedResponseDto<FamilyResponseDto>>.Fail(result.Errors, "›‘· ›Ì Ã·» «·⁄«∆·« ", 400));
+        }
+
         [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreateFamilyDto dto)
         {
             if (!ModelState.IsValid)
             {
-                var modelErrors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-
-                return BadRequest(ApiResponseDto<int>.Fail(modelErrors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                return BadRequest(ApiResponseDto<int>.Fail(errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
 
-            var currentUserId = GetCurrentUserId();
-            var result = await _familyService.CreateAsync(dto, currentUserId);
-            
-            if (!result.IsSuccess)
-                return BadRequest(ApiResponseDto<int>.Fail(result.Errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
+            var result = await _familyService.CreateAsync(dto, GetCurrentUserRole(), GetCurrentUserId());
 
-            return Ok(ApiResponseDto<int>.Success(result.Data, " „ ≈‰‘«¡ «·⁄«∆·… »‰Ã«Õ", 201));
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<int>.Success(result.Data, " „ ≈‰‘«¡ «·⁄«∆·… »‰Ã«Õ", 201))
+                : BadRequest(ApiResponseDto<int>.Fail(result.Errors, "›‘· ›Ì ≈‰‘«¡ «·⁄«∆·…", 400));
         }
 
-        // ? PUT: api/Families/update/{id}
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateFamilyDto dto)
         {
             if (!ModelState.IsValid)
             {
-                var modelErrors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-
-                return BadRequest(ApiResponseDto<bool>.Fail(modelErrors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                return BadRequest(ApiResponseDto<bool>.Fail(errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
 
-            var currentUserId = GetCurrentUserId();
-            var result = await _familyService.UpdateAsync(id, dto, currentUserId);
-            
-            if (!result.IsSuccess)
-                return BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
+            var result = await _familyService.UpdateAsync(id, dto, GetCurrentUserId());
 
-            return Ok(ApiResponseDto<bool>.Success(result.Data, " „  ÕœÌÀ «·⁄«∆·… »‰Ã«Õ"));
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<bool>.Success(result.Data, " „  ÕœÌÀ «·⁄«∆·… »‰Ã«Õ"))
+                : BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "›‘· ›Ì  ÕœÌÀ «·⁄«∆·…", 400));
         }
 
-        // ? DELETE: api/Families/delete/{id}
+        [Authorize(Roles = "SuperAdmin")]
         [HttpDelete("delete/{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _familyService.DeleteAsync(id);
-            
-            if (!result.IsSuccess)
-                return BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
 
-            return Ok(ApiResponseDto<bool>.Success(result.Data, " „ Õ–› «·⁄«∆·… »‰Ã«Õ"));
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<bool>.Success(result.Data, " „ Õ–› «·⁄«∆·… »‰Ã«Õ"))
+                : BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "›‘· ›Ì Õ–› «·⁄«∆·…", 400));
         }
-
-        // ? GET: api/Families/supervisor/{supervisorId}
-        // GET: api/Families/by-supervisors
-        [HttpGet("by-supervisors")]
-        public async Task<IActionResult> GetBySupervisors(
-            [FromQuery] IEnumerable<int> supervisorIds,
-            [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10000)
-        {
-            if (!supervisorIds.Any())
-                return BadRequest("SupervisorIds is required");
-
-            if (pageNumber < 1) pageNumber = 1;
-            if (pageSize < 1) pageSize = 10;
-
-            var (families, totalCount) =
-                await _familyService.GetBySupervisorIdsAsync(
-                    supervisorIds.Distinct(),
-                    pageNumber,
-                    pageSize);
-
-            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
-
-            return Ok(ApiResponseDto<PaginatedResponseDto<FamilyResponseDto>>.Success(
-                new PaginatedResponseDto<FamilyResponseDto>
-                {
-                    Items = families,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize,
-                    TotalCount = totalCount,
-                    PagesCount = pagesCount
-                },
-                " „ «” —Ã«⁄ ⁄«∆·«  «·„‘—›Ì‰ »‰Ã«Õ"
-            ));
-        }
-
     }
 }
