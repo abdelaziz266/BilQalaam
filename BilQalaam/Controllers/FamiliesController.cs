@@ -49,9 +49,6 @@ namespace BilQalaam.Api.Controllers
                 : NotFound(ApiResponseDto<FamilyResponseDto>.Fail(result.Errors, "áã íÊã ÇáÚËæÑ ÚáíåÇ", 404));
         }
 
-        /// <summary>
-        /// Get families by teacher ID (same supervisor)
-        /// </summary>
         [HttpGet("by-teacher/{teacherId}")]
         public async Task<IActionResult> GetByTeacherId(int teacherId, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
         {

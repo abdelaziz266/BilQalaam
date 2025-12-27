@@ -1,23 +1,31 @@
+using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.DTOs.Students;
+using BilQalaam.Application.Results;
 
 namespace BilQalaam.Application.Interfaces
 {
     public interface IStudentService
     {
-        Task<(IEnumerable<StudentResponseDto>, int)> GetAllAsync(
-            int pageNumber = 1,
-            int pageSize = 10,
-            IEnumerable<int>? familyIds = null,
-            IEnumerable<int>? teacherIds = null);
-        Task<StudentResponseDto?> GetByIdAsync(int id);
-        Task<IEnumerable<StudentResponseDto>> GetByFamilyIdAsync(int familyId);
-        Task<IEnumerable<StudentResponseDto>> GetByTeacherIdAsync(int teacherId);
-        Task<int> CreateAsync(CreateStudentDto dto, string createdByUserId);
-        Task<bool> UpdateAsync(int id, UpdateStudentDto dto, string updatedByUserId);
-        Task<bool> DeleteAsync(int id);
-        Task<(IEnumerable<StudentResponseDto>, int)> GetByFamilyIdsAsync(
-    IEnumerable<int> familyIds,
-    int pageNumber,
-    int pageSize);
+        Task<Result<PaginatedResponseDto<StudentResponseDto>>> GetAllAsync(
+            int pageNumber,
+            int pageSize,
+            IEnumerable<int>? familyIds,
+            IEnumerable<int>? teacherIds,
+            string role,
+            string userId);
+
+        Task<Result<StudentResponseDto>> GetByIdAsync(int id, string role, string userId);
+
+        Task<Result<int>> CreateAsync(CreateStudentDto dto, string role, string userId);
+
+        Task<Result<bool>> UpdateAsync(int id, UpdateStudentDto dto, string userId);
+
+        Task<Result<bool>> DeleteAsync(int id);
+
+        /// <summary>
+        /// Get students by teacher ID
+        /// </summary>
+        Task<Result<PaginatedResponseDto<StudentResponseDto>>> GetByTeacherIdAsync(
+            int teacherId);
     }
 }

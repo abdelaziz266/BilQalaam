@@ -55,9 +55,7 @@ namespace BilQalaam.Api.Controllers
         [HttpGet("by-family/{familyId}")]
         public async Task<IActionResult> GetByFamilyId(int familyId, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10000)
         {
-            if (pageNumber < 1) pageNumber = 1;
-            if (pageSize < 1) pageSize = 10;
-
+            
             var result = await _teacherService.GetByFamilyIdAsync(familyId, pageNumber, pageSize);
 
             return result.IsSuccess
