@@ -1,5 +1,6 @@
 ﻿using BilQalaam.Application.DTOs.Auth;
 using BilQalaam.Application.Interfaces;
+using BilQalaam.Application.Results;
 using BilQalaam.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 
@@ -18,27 +19,37 @@ namespace BilQalaam.Application.Services
             _tokenService = tokenService;
         }
 
-        public async Task<LoginResponseDto> LoginAsync(LoginRequestDto dto)
+        public async Task<Result<LoginResponseDto>> LoginAsync(LoginRequestDto dto)
         {
-            var user = await _userManager.FindByEmailAsync(dto.Email);
-            if (user == null)
-                throw new UnauthorizedAccessException("Invalid email or password");
-
-            var validPassword = await _userManager.CheckPasswordAsync(user, dto.Password);
-            if (!validPassword)
-                throw new UnauthorizedAccessException("Invalid email or password");
-
-            var (token, expiresAt) = _tokenService.GenerateToken(user);
-
-            return new LoginResponseDto
+            try
             {
-                Token = token,
-                Expiration = expiresAt,
-                UserId = user.Id,
-                Email = user.Email!,
-                Role = user.Role?.ToString() ?? ""
-            };
+                var user = await _userManager.FindByEmailAsync(dto.Email);
+                if (user == null)
+                    return Result<LoginResponseDto>.Failure("بيانات الدخول غير صحيحة");
 
+                // Check if user is deleted
+                if (user.IsDeleted)
+                    return Result<LoginResponseDto>.Failure("حساب المستخدم معطل");
+
+                var validPassword = await _userManager.CheckPasswordAsync(user, dto.Password);
+                if (!validPassword)
+                    return Result<LoginResponseDto>.Failure("بيانات الدخول غير صحيحة");
+
+                var (token, expiresAt) = _tokenService.GenerateToken(user);
+
+                return Result<LoginResponseDto>.Success(new LoginResponseDto
+                {
+                    Token = token,
+                    Expiration = expiresAt,
+                    UserId = user.Id,
+                    Email = user.Email!,
+                    Role = user.Role?.ToString() ?? ""
+                });
+            }
+            catch (Exception ex)
+            {
+                return Result<LoginResponseDto>.Failure($"خطأ في تسجيل الدخول: {ex.Message}");
+            }
         }
     }
 }

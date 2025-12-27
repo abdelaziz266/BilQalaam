@@ -3,68 +3,44 @@ using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-[ApiController]
-[Route("api/[controller]")]
-public class AuthController : ControllerBase
+namespace BilQalaam.Api.Controllers
 {
-    private readonly IAuthService _authService;
-
-    public AuthController(IAuthService authService)
+    [Route("api/[controller]")]
+    [ApiController]
+    public class AuthController : ControllerBase
     {
-        _authService = authService;
-    }
+        private readonly IAuthService _authService;
 
-    [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
-    {
-        // التحقق من صحة البيانات
-        if (!ModelState.IsValid)
+        public AuthController(IAuthService authService)
         {
-            var errors = ModelState.Values
-                .SelectMany(v => v.Errors)
-                .Select(e => e.ErrorMessage)
-                .ToList();
-
-            return BadRequest(
-                ApiResponseDto<LoginResponseDto>.Fail(
-                    errors,
-                    "فشل التحقق من البيانات",
-                    400
-                )
-            );
+            _authService = authService;
         }
 
-        try
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
         {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .ToList();
+
+                return BadRequest(ApiResponseDto<LoginResponseDto>.Fail(errors, "فشل التحقق من البيانات", 400));
+            }
+
             var result = await _authService.LoginAsync(dto);
 
-            return Ok(
-                ApiResponseDto<LoginResponseDto>.Success(
-                    result,
-                    "تم تسجيل الدخول بنجاح",
-                    200
-                )
-            );
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Unauthorized(
-                ApiResponseDto<LoginResponseDto>.Fail(
-                    new List<string> { ex.Message },
-                    "غير مصرح",
+            if (!result.IsSuccess)
+            {
+                return Unauthorized(ApiResponseDto<LoginResponseDto>.Fail(
+                    result.Errors,
+                    "بيانات الدخول غير صحيحة",
                     401
-                )
-            );
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500,
-                ApiResponseDto<LoginResponseDto>.Fail(
-                    new List<string> { ex.Message },
-                    "حدث خطأ",
-                    500
-                )
-            );
+                ));
+            }
+
+            return Ok(ApiResponseDto<LoginResponseDto>.Success(result.Data!, "تم تسجيل الدخول بنجاح", 200));
         }
     }
 }
