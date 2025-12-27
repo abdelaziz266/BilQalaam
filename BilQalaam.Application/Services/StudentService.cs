@@ -310,6 +310,11 @@ namespace BilQalaam.Application.Services
                 if (student == null)
                     return Result<bool>.Failure("«·ÿ«·» €Ì— „ÊÃÊœ");
 
+                // «· Õﬁﬁ „‰ ÊÃÊœ œ—Ê” „— »ÿ… »«·ÿ«·»
+                var lessons = await _unitOfWork.Repository<Lesson>().FindAsync(l => l.StudentId == id && !l.IsDeleted);
+                if (lessons.Any())
+                    return Result<bool>.Failure("·« Ì„ﬂ‰ Õ–› «·ÿ«·» ·√‰ Â‰«ﬂ œ—Ê” „— »ÿ… »Â");
+
                 var studentUser = await _userManager.FindByIdAsync(student.UserId);
                 if (studentUser != null)
                 {

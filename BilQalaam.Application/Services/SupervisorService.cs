@@ -200,7 +200,17 @@ namespace BilQalaam.Application.Services
             {
                 var supervisor = await _unitOfWork.Repository<Supervisor>().GetByIdAsync(id);
                 if (supervisor == null)
-                    return Result<bool>.Failure(new List<string> { "المشرف غير موجود" });
+                    return Result<bool>.Failure("المشرف غير موجود");
+
+                // التحقق من وجود معلمين مرتبطن بالمشرف
+                var teachers = await _unitOfWork.Repository<Teacher>().FindAsync(t => t.SupervisorId == id && !t.IsDeleted);
+                if (teachers.Any())
+                    return Result<bool>.Failure("لا يمكن حذف المشرف لأن هناك معلمين مرتبطين به");
+
+                // التحقق من وجود عائلات مرتبطة بالمشرف
+                var families = await _unitOfWork.Repository<Family>().FindAsync(f => f.SupervisorId == id && !f.IsDeleted);
+                if (families.Any())
+                    return Result<bool>.Failure("لا يمكن حذف المشرف لأن هناك عائلات مرتبطة به");
 
                 var user = await _userManager.FindByIdAsync(supervisor.UserId);
                 if (user != null)
@@ -211,7 +221,6 @@ namespace BilQalaam.Application.Services
                     await _userManager.UpdateAsync(user);
                 }
 
-                // 🗑️ Soft Delete - تحديث العلامات بدل الحذف الفعلي
                 supervisor.IsDeleted = true;
                 supervisor.DeletedAt = DateTime.UtcNow;
                 supervisor.DeletedBy = id.ToString();
@@ -223,7 +232,7 @@ namespace BilQalaam.Application.Services
             }
             catch (Exception ex)
             {
-                return Result<bool>.Failure(new List<string> { $"خطأ في حذف المشرف: {ex.Message}" });
+                return Result<bool>.Failure($"خطأ في حذف المشرف: {ex.Message}");
             }
         }
     }

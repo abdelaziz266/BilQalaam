@@ -256,6 +256,16 @@ namespace BilQalaam.Application.Services
                 if (teacher == null)
                     return Result<bool>.Failure("ÇáãÚáã ÛíÑ ãæÌæÏ");
 
+                // ÇáÊÍŞŞ ãä æÌæÏ ØáÇÈ ãÑÊÈØíä ÈÇáãÚáã
+                var students = await _unitOfWork.Repository<Student>().FindAsync(s => s.TeacherId == id && !s.IsDeleted);
+                if (students.Any())
+                    return Result<bool>.Failure("áÇ íãßä ÍĞİ ÇáãÚáã áÃä åäÇß ØáÇÈ ãÑÊÈØíä Èå");
+
+                // ÇáÊÍŞŞ ãä æÌæÏ ÏÑæÓ ãÑÊÈØÉ ÈÇáãÚáã
+                var lessons = await _unitOfWork.Repository<Lesson>().FindAsync(l => l.TeacherId == id && !l.IsDeleted);
+                if (lessons.Any())
+                    return Result<bool>.Failure("áÇ íãßä ÍĞİ ÇáãÚáã áÃä åäÇß ÏÑæÓ ãÑÊÈØÉ Èå");
+
                 var teacherUser = await _userManager.FindByIdAsync(teacher.UserId);
                 if (teacherUser != null)
                 {

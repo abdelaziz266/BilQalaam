@@ -31,6 +31,7 @@ namespace BilQalaam.Infrastructure.Extensions
             services.AddScoped<IStudentService, StudentService>();
             services.AddScoped<IInvoiceService, InvoiceService>();
             services.AddScoped<IAuthService, AuthService>();
+            services.AddScoped<IDashboardService, DashboardService>();
 
             return services;
         }

@@ -258,6 +258,11 @@ namespace BilQalaam.Application.Services
                 if (family == null)
                     return Result<bool>.Failure("العائلة غير موجودة");
 
+                // التحقق من وجود طلاب مرتبطين بالعائلة
+                var students = await _unitOfWork.Repository<Student>().FindAsync(s => s.FamilyId == id && !s.IsDeleted);
+                if (students.Any())
+                    return Result<bool>.Failure("لا يمكن حذف العائلة لأن هناك طلاب مرتبطين بها");
+
                 family.IsDeleted = true;
                 family.DeletedAt = DateTime.UtcNow;
                 family.DeletedBy = id.ToString();
