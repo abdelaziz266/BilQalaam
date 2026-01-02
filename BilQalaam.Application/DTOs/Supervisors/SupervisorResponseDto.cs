@@ -15,8 +15,8 @@ namespace BilQalaam.Application.DTOs.Supervisors
         public decimal HourlyRate { get; set; }
         public Currency Currency { get; set; }
 
-        // ?? ÈíÇäÇÊ ÇáíæÒÑ
-        public string UserId { get; set; } = string.Empty;
+        // ?? ÊÇÑíÎ ÈÏÁ ÇáÚãá
+        public DateTime StartDate { get; set; }
 
         // ?? ÇáÊæÇÑíÎ
         public DateTime CreatedAt { get; set; }

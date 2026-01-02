@@ -11,7 +11,8 @@ namespace BilQalaam.Application.Interfaces
             int pageNumber,
             int pageSize,
             string role,
-            string userId);
+            string userId,
+            string? searchText = null);
 
         Task<Result<FamilyResponseDto>> GetByIdAsync(int id, string role, string userId);
 
@@ -28,5 +29,15 @@ namespace BilQalaam.Application.Interfaces
             int teacherId,
             int pageNumber,
             int pageSize);
+
+        /// <summary>
+        /// Get family details with related teachers and students
+        /// </summary>
+        Task<Result<FamilyDetailsDto>> GetFamilyDetailsAsync(int familyId);
+
+        /// <summary>
+        /// Get multiple families details with related teachers and students
+        /// </summary>
+        Task<Result<List<FamilyDetailsDto>>> GetMultipleFamiliesDetailsAsync(IEnumerable<int> familyIds);
     }
 }

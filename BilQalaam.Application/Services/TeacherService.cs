@@ -1,5 +1,7 @@
 using AutoMapper;
 using BilQalaam.Application.DTOs.Common;
+using BilQalaam.Application.DTOs.Families;
+using BilQalaam.Application.DTOs.Students;
 using BilQalaam.Application.DTOs.Teachers;
 using BilQalaam.Application.Interfaces;
 using BilQalaam.Application.Results;
@@ -34,7 +36,8 @@ namespace BilQalaam.Application.Services
             int pageNumber,
             int pageSize,
             string role,
-            string userId)
+            string userId,
+            string? searchText = null)
         {
             try
             {
@@ -42,6 +45,14 @@ namespace BilQalaam.Application.Services
                     .Repository<Teacher>()
                     .Query()
                     .Include(t => t.Supervisor);
+
+                // Search by name, email, or phone number
+                if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    var lowerSearchText = searchText.ToLower();
+                    query = query.Where(t =>
+                        t.TeacherName.ToLower().Contains(lowerSearchText));
+                }
 
                 // Admin Ì‘Ê› «·„⁄·„Ì‰ «·„— »ÿÌ‰ »Â ›ﬁÿ
                 if (role == "Admin")
@@ -168,11 +179,13 @@ namespace BilQalaam.Application.Services
                 var teacher = new Teacher
                 {
                     TeacherName = dto.FullName,
+                    CountryCode = dto.CountryCode,
                     PhoneNumber = dto.PhoneNumber,
                     Email = dto.Email,
                     SupervisorId = supervisorId,
                     HourlyRate = dto.HourlyRate,
                     Currency = dto.Currency,
+                    StartDate = dto.StartDate,
                     UserId = user.Id,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = userId
@@ -209,10 +222,12 @@ namespace BilQalaam.Application.Services
                 }
 
                 teacher.TeacherName = dto.FullName;
+                teacher.CountryCode = dto.CountryCode;
                 teacher.PhoneNumber = dto.PhoneNumber;
                 teacher.SupervisorId = dto.SupervisorId;
                 teacher.HourlyRate = dto.HourlyRate;
                 teacher.Currency = dto.Currency;
+                teacher.StartDate = dto.StartDate;
                 teacher.UpdatedAt = DateTime.UtcNow;
                 teacher.UpdatedBy = userId;
 
@@ -360,5 +375,110 @@ namespace BilQalaam.Application.Services
         }
 
         #endregion
+
+        public async Task<Result<TeacherDetailsDto>> GetTeacherDetailsAsync(int teacherId)
+        {
+            try
+            {
+                // ÃÌ» »Ì«‰«  «·„⁄·„
+                var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
+                if (teacher == null)
+                    return Result<TeacherDetailsDto>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
+
+                // ÃÌ» «·⁄«∆·«  «·„— »ÿ… („‰ Œ·«· ‰›” Supervisor)
+                var families = new List<Family>();
+                if (teacher.SupervisorId.HasValue)
+                {
+                    families = (await _unitOfWork.Repository<Family>()
+                        .FindAsync(f => f.SupervisorId == teacher.SupervisorId && !f.IsDeleted))
+                        .ToList();
+                }
+
+                // ÃÌ» «·ÿ·«» «·„— »ÿÌ‰ »«·„⁄·„
+                var students = (await _unitOfWork.Repository<Student>()
+                    .FindAsync(s => s.TeacherId == teacherId && !s.IsDeleted))
+                    .ToList();
+
+                var teacherDetailsDto = new TeacherDetailsDto
+                {
+                    TeacherId = teacher.Id,
+                    TeacherName = teacher.TeacherName,
+                    Families = _mapper.Map<List<FamilyResponseDto>>(families),
+                    Students = _mapper.Map<List<StudentResponseDto>>(students),
+                    TotalFamilies = families.Count,
+                    TotalStudents = students.Count
+                };
+
+                return Result<TeacherDetailsDto>.Success(teacherDetailsDto);
+            }
+            catch (Exception ex)
+            {
+                return Result<TeacherDetailsDto>.Failure($"Œÿ√ ›Ì Ã·»  ›«’Ì· «·„⁄·„: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<List<TeacherDetailsDto>>> GetMultipleTeachersDetailsAsync(IEnumerable<int> teacherIds)
+        {
+            try
+            {
+                var teacherIdList = teacherIds.ToList();
+                if (!teacherIdList.Any())
+                    return Result<List<TeacherDetailsDto>>.Failure("ÌÃ»  ÕœÌœ „⁄—› Ê«Õœ ⁄·Ï «·√ﬁ·");
+
+                var teacherDetailsList = new List<TeacherDetailsDto>();
+
+                // ÃÌ» »Ì«‰«  ﬂ· «·„⁄·„Ì‰
+                var teachers = await _unitOfWork.Repository<Teacher>()
+                    .FindAsync(t => teacherIdList.Contains(t.Id) && !t.IsDeleted);
+
+                if (!teachers.Any())
+                    return Result<List<TeacherDetailsDto>>.Failure("·„ Ì „ «·⁄ÀÊ— ⁄·Ï „⁄·„Ì‰");
+
+                // ÃÌ» Ã„Ì⁄ «·⁄«∆·«  «·„— »ÿ… »«·„⁄·„Ì‰ („‰ Œ·«· Supervisor)
+                var supervisorIds = teachers.Where(t => t.SupervisorId.HasValue)
+                    .Select(t => t.SupervisorId.Value)
+                    .Distinct()
+                    .ToList();
+
+                var allFamilies = new List<Family>();
+                if (supervisorIds.Any())
+                {
+                    allFamilies = (await _unitOfWork.Repository<Family>()
+                        .FindAsync(f => supervisorIds.Contains(f.SupervisorId.Value) && !f.IsDeleted))
+                        .ToList();
+                }
+
+                // ÃÌ» Ã„Ì⁄ «·ÿ·«» «·„— »ÿÌ‰ »«·„⁄·„Ì‰
+                var allStudents = (await _unitOfWork.Repository<Student>()
+                    .FindAsync(s => teacherIdList.Contains(s.TeacherId) && !s.IsDeleted))
+                    .ToList();
+
+                // »‰«¡ «” Ã«»… ·ﬂ· „⁄·„
+                foreach (var teacher in teachers)
+                {
+                    var teacherFamilies = teacher.SupervisorId.HasValue
+                        ? allFamilies.Where(f => f.SupervisorId == teacher.SupervisorId).ToList()
+                        : new List<Family>();
+
+                    var teacherStudents = allStudents.Where(s => s.TeacherId == teacher.Id).ToList();
+
+                    teacherDetailsList.Add(new TeacherDetailsDto
+                    {
+                        TeacherId = teacher.Id,
+                        TeacherName = teacher.TeacherName,
+                        Families = _mapper.Map<List<FamilyResponseDto>>(teacherFamilies),
+                        Students = _mapper.Map<List<StudentResponseDto>>(teacherStudents),
+                        TotalFamilies = teacherFamilies.Count,
+                        TotalStudents = teacherStudents.Count
+                    });
+                }
+
+                return Result<List<TeacherDetailsDto>>.Success(teacherDetailsList);
+            }
+            catch (Exception ex)
+            {
+                return Result<List<TeacherDetailsDto>>.Failure($"Œÿ√ ›Ì Ã·»  ›«’Ì· «·„⁄·„Ì‰: {ex.Message}");
+            }
+        }
     }
 }

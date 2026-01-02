@@ -31,7 +31,8 @@ namespace BilQalaam.Api.Controllers
             [FromQuery] int pageNumber = 1,
             [FromQuery] int pageSize = 10,
             [FromQuery] IEnumerable<int>? familyIds = null,
-            [FromQuery] IEnumerable<int>? teacherIds = null)
+            [FromQuery] IEnumerable<int>? teacherIds = null,
+            [FromQuery] string? searchText = null)
         {
             if (pageNumber < 1) pageNumber = 1;
             if (pageSize < 1) pageSize = 10;
@@ -40,7 +41,8 @@ namespace BilQalaam.Api.Controllers
                 pageNumber, pageSize,
                 familyIds?.Distinct(),
                 teacherIds?.Distinct(),
-                GetCurrentUserRole(), GetCurrentUserId());
+                GetCurrentUserRole(), GetCurrentUserId(),
+                searchText);
 
             return result.IsSuccess
                 ? Ok(ApiResponseDto<PaginatedResponseDto<StudentResponseDto>>.Success(result.Data!, " „ «” —Ã«⁄ «·ÿ·«» »‰Ã«Õ"))

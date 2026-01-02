@@ -5,17 +5,22 @@ namespace BilQalaam.Application.DTOs.Supervisors
 {
     public class CreateSupervisorDto
     {
-        // ?? »Ì«‰«  «·ÌÊ“— «·ÃœÌœ
-        [Required(ErrorMessage = "«·«”„ «·ﬂ«„· „ÿ·Ê»")]
-        [StringLength(100, MinimumLength = 3, ErrorMessage = "«·«”„ ÌÃ» √‰ ÌﬂÊ‰ »Ì‰ 3 Ê 100 Õ—›")]
+        // ?? »Ì«‰«  «·„‘—› «·√”«”Ì…
+        [Required(ErrorMessage = "«”„ «·„‘—› „ÿ·Ê»")]
+        [StringLength(100, MinimumLength = 3, ErrorMessage = "«”„ ÌÃ» √‰ ÌﬂÊ‰ »Ì‰ 3 Ê 100 Õ—›")]
         public string FullName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "«·»—Ìœ «·≈·ﬂ —Ê‰Ì „ÿ·Ê»")]
         [EmailAddress(ErrorMessage = "«·»—Ìœ «·≈·ﬂ —Ê‰Ì €Ì— ’ÕÌÕ")]
         public string Email { get; set; } = string.Empty;
 
+        // ?? —„“ «·œÊ·… + —ﬁ„ «·Â« ›
+        [Required(ErrorMessage = "—„“ «·œÊ·… „ÿ·Ê»")]
+        [StringLength(5, MinimumLength = 1, ErrorMessage = "—„“ «·œÊ·… ÌÃ» √‰ ÌﬂÊ‰ »Ì‰ 1 Ê 5 √Õ—›")]
+        public string CountryCode { get; set; } = string.Empty;
+
         [Required(ErrorMessage = "—ﬁ„ «·Â« › „ÿ·Ê»")]
-        [RegularExpression(@"^(010|011|012)\d{8}$", ErrorMessage = "—ﬁ„ «·Â« › ÌÃ» √‰ Ì»œ√ » 010 √Ê 011 √Ê 012 ÊÌﬂÊ‰ 11 —ﬁ„")]
+        [RegularExpression(@"^\d{10,15}$", ErrorMessage = "—ﬁ„ «·Â« › ÌÃ» √‰ ÌﬂÊ‰ »Ì‰ 10 Ê 15 —ﬁ„")]
         public string PhoneNumber { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "ﬂ·„… «·„—Ê— „ÿ·Ê»…")]
@@ -27,5 +32,9 @@ namespace BilQalaam.Application.DTOs.Supervisors
         public decimal HourlyRate { get; set; }
 
         public Currency Currency { get; set; }
+
+        // ??  «—ÌŒ »œ¡ «·⁄„·
+        [Required(ErrorMessage = " «—ÌŒ »œ¡ «·⁄„· „ÿ·Ê»")]
+        public DateTime StartDate { get; set; }
     }
 }

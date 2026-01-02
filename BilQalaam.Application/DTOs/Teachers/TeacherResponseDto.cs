@@ -11,18 +11,21 @@ namespace BilQalaam.Application.DTOs.Teachers
         public string PhoneNumber { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
 
-        // ?? ÈíÇäÇÊ ÇáÓÚÑ
+        // ?? ÓÚÑ ÇáÓÇÚÉ
         public decimal HourlyRate { get; set; }
         public Currency Currency { get; set; }
 
-        // ?? ÇáãÔÑİ ÇáÊÇÈÚ áå
+        // ?? ÊÇÑíÎ ÈÏÁ ÇáÚãá
+        public DateTime StartDate { get; set; }
+
+        // ?? ÈíÇäÇÊ ÇáãÔÑİ
         public int? SupervisorId { get; set; }
         public string? SupervisorName { get; set; }
 
-        // ?? ÈíÇäÇÊ ÇáíæÒÑ
+        // ?? ÈíÇäÇÊ ÇáãÓÊÎÏã
         public string UserId { get; set; } = string.Empty;
 
-        // ?? ÇáÊæÇÑíÎ
+        // ?? ÇáØæÇÈÚ ÇáÒãäíÉ
         public DateTime CreatedAt { get; set; }
     }
 }

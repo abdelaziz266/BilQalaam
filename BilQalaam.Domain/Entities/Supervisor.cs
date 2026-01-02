@@ -7,12 +7,18 @@ namespace BilQalaam.Domain.Entities
     {
         // ?? ÈíÇäÇÊ ÇáãÔÑİ ÇáÃÓÇÓíÉ
         public string SupervisorName { get; set; } = string.Empty;
-        public string PhoneNumber { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
+
+        // ?? ÑãÒ ÇáÏæáÉ + ÑŞã ÇáåÇÊİ
+        public string CountryCode { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
 
         // ?? ÓÚÑ ÇáÓÇÚÉ
         public decimal HourlyRate { get; set; }
         public Currency Currency { get; set; }
+
+        // ?? ÊÇÑíÎ ÈÏÁ ÇáÚãá
+        public DateTime StartDate { get; set; }
 
         // ?? ÇáÇÑÊÈÇØ ãÚ User (One-to-One)
         public string UserId { get; set; } = string.Empty;

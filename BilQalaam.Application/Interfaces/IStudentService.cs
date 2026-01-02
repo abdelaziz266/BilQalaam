@@ -12,7 +12,8 @@ namespace BilQalaam.Application.Interfaces
             IEnumerable<int>? familyIds,
             IEnumerable<int>? teacherIds,
             string role,
-            string userId);
+            string userId,
+            string? searchText = null);
 
         Task<Result<StudentResponseDto>> GetByIdAsync(int id, string role, string userId);
 

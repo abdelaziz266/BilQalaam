@@ -27,12 +27,15 @@ namespace BilQalaam.Api.Controllers
             User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
 
         [HttpGet("get")]
-        public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetAll(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? searchText = null)
         {
             if (pageNumber < 1) pageNumber = 1;
             if (pageSize < 1) pageSize = 10;
 
-            var result = await _familyService.GetAllAsync(pageNumber, pageSize, GetCurrentUserRole(), GetCurrentUserId());
+            var result = await _familyService.GetAllAsync(pageNumber, pageSize, GetCurrentUserRole(), GetCurrentUserId(), searchText);
 
             return result.IsSuccess
                 ? Ok(ApiResponseDto<PaginatedResponseDto<FamilyResponseDto>>.Success(result.Data!, "Êã ÇÓÊÑÌÇÚ ÇáÚÇÆáÇÊ ÈäÌÇÍ"))
@@ -104,6 +107,43 @@ namespace BilQalaam.Api.Controllers
             return result.IsSuccess
                 ? Ok(ApiResponseDto<bool>.Success(result.Data, "Êã ÍĞİ ÇáÚÇÆáÉ ÈäÌÇÍ"))
                 : BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "İÔá İí ÍĞİ ÇáÚÇÆáÉ", 400));
+        }
+
+        /// <summary>
+        /// Get family details with related teachers and students
+        /// Accepts single or multiple family IDs (required at least one)
+        /// </summary>
+        [HttpGet("details")]
+        public async Task<IActionResult> GetFamilyDetails(
+            [FromQuery(Name = "ids")] IEnumerable<int>? ids = null)
+        {
+            // ÇáÊÍŞŞ ãä Ãä åäÇß ãÚÑİ æÇÍÏ Úáì ÇáÃŞá
+            if (ids == null || !ids.Any())
+            {
+                return BadRequest(ApiResponseDto<object>.Fail(
+                    new List<string> { "íÌÈ ÊÍÏíÏ ãÚÑİ æÇÍÏ Úáì ÇáÃŞá" },
+                    "ÈíÇäÇÊ ãİŞæÏÉ",
+                    400
+                ));
+            }
+
+            var distinctIds = ids.Distinct().ToList();
+
+            // áæ ÈÚÊ single ID
+            if (distinctIds.Count == 1)
+            {
+                var singleId = distinctIds.First();
+                var result = await _familyService.GetFamilyDetailsAsync(singleId);
+                return result.IsSuccess
+                    ? Ok(ApiResponseDto<FamilyDetailsDto>.Success(result.Data!, "Êã ÇÓÊÑÌÇÚ ÊİÇÕíá ÇáÚÇÆáÉ ÈäÌÇÍ"))
+                    : NotFound(ApiResponseDto<FamilyDetailsDto>.Fail(result.Errors, "áã íÊã ÇáÚËæÑ ÚáíåÇ", 404));
+            }
+
+            // áæ ÈÚÊ ÚÏÉ IDs
+            var multipleResult = await _familyService.GetMultipleFamiliesDetailsAsync(distinctIds);
+            return multipleResult.IsSuccess
+                ? Ok(ApiResponseDto<List<FamilyDetailsDto>>.Success(multipleResult.Data!, "Êã ÇÓÊÑÌÇÚ ÊİÇÕíá ÇáÚÇÆáÇÊ ÈäÌÇÍ"))
+                : NotFound(ApiResponseDto<List<FamilyDetailsDto>>.Fail(multipleResult.Errors, "İÔá İí ÌáÈ ÇáÈíÇäÇÊ", 404));
         }
     }
 }

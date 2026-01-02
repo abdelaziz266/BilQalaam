@@ -1,6 +1,8 @@
 ﻿using AutoMapper;
 using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.DTOs.Families;
+using BilQalaam.Application.DTOs.Students;
+using BilQalaam.Application.DTOs.Teachers;
 using BilQalaam.Application.Interfaces;
 using BilQalaam.Application.Results;
 using BilQalaam.Application.UnitOfWork;
@@ -34,7 +36,8 @@ namespace BilQalaam.Application.Services
             int pageNumber,
             int pageSize,
             string role,
-            string userId)
+            string userId,
+            string? searchText = null)
         {
             try
             {
@@ -42,6 +45,14 @@ namespace BilQalaam.Application.Services
                     .Repository<Family>()
                     .Query()
                     .Include(f => f.Supervisor);
+
+                // Search by name, email, or phone number
+                if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    var lowerSearchText = searchText.ToLower();
+                    query = query.Where(f =>
+                        f.FamilyName.ToLower().Contains(lowerSearchText));
+                }
 
                 // Admin يشوف العائلات المرتبطة به فقط
                 if (role == "Admin")
@@ -168,6 +179,7 @@ namespace BilQalaam.Application.Services
                 var family = new Family
                 {
                     FamilyName = dto.FullName,
+                    CountryCode = dto.CountryCode,
                     PhoneNumber = dto.PhoneNumber,
                     Country = dto.Country,
                     Email = dto.Email,
@@ -210,6 +222,7 @@ namespace BilQalaam.Application.Services
                 }
 
                 family.FamilyName = dto.FullName;
+                family.CountryCode = dto.CountryCode;
                 family.PhoneNumber = dto.PhoneNumber;
                 family.Country = dto.Country;
                 family.SupervisorId = dto.SupervisorId;
@@ -357,5 +370,110 @@ namespace BilQalaam.Application.Services
         }
 
         #endregion
+
+        public async Task<Result<FamilyDetailsDto>> GetFamilyDetailsAsync(int familyId)
+        {
+            try
+            {
+                // جيب بيانات العائلة
+                var family = await _unitOfWork.Repository<Family>().GetByIdAsync(familyId);
+                if (family == null)
+                    return Result<FamilyDetailsDto>.Failure("العائلة غير موجودة");
+
+                // جيب المعلمين المرتبطين (من خلال نفس Supervisor)
+                var teachers = new List<Teacher>();
+                if (family.SupervisorId.HasValue)
+                {
+                    teachers = (await _unitOfWork.Repository<Teacher>()
+                        .FindAsync(t => t.SupervisorId == family.SupervisorId && !t.IsDeleted))
+                        .ToList();
+                }
+
+                // جيب الطلاب المرتبطين بالعائلة
+                var students = (await _unitOfWork.Repository<Student>()
+                    .FindAsync(s => s.FamilyId == familyId && !s.IsDeleted))
+                    .ToList();
+
+                var familyDetailsDto = new FamilyDetailsDto
+                {
+                    FamilyId = family.Id,
+                    FamilyName = family.FamilyName,
+                    Teachers = _mapper.Map<List<TeacherResponseDto>>(teachers),
+                    Students = _mapper.Map<List<StudentResponseDto>>(students),
+                    TotalTeachers = teachers.Count,
+                    TotalStudents = students.Count
+                };
+
+                return Result<FamilyDetailsDto>.Success(familyDetailsDto);
+            }
+            catch (Exception ex)
+            {
+                return Result<FamilyDetailsDto>.Failure($"خطأ في جلب تفاصيل العائلة: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<List<FamilyDetailsDto>>> GetMultipleFamiliesDetailsAsync(IEnumerable<int> familyIds)
+        {
+            try
+            {
+                var familyIdList = familyIds.ToList();
+                if (!familyIdList.Any())
+                    return Result<List<FamilyDetailsDto>>.Failure("يجب تحديد معرف واحد على الأقل");
+
+                var familyDetailsList = new List<FamilyDetailsDto>();
+
+                // جيب بيانات كل العائلات
+                var families = await _unitOfWork.Repository<Family>()
+                    .FindAsync(f => familyIdList.Contains(f.Id) && !f.IsDeleted);
+
+                if (!families.Any())
+                    return Result<List<FamilyDetailsDto>>.Failure("لم يتم العثور على عائلات");
+
+                // جيب جميع المعلمين المرتبطين بالعائلات (من خلال Supervisor)
+                var supervisorIds = families.Where(f => f.SupervisorId.HasValue)
+                    .Select(f => f.SupervisorId.Value)
+                    .Distinct()
+                    .ToList();
+
+                var allTeachers = new List<Teacher>();
+                if (supervisorIds.Any())
+                {
+                    allTeachers = (await _unitOfWork.Repository<Teacher>()
+                        .FindAsync(t => supervisorIds.Contains(t.SupervisorId.Value) && !t.IsDeleted))
+                        .ToList();
+                }
+
+                // جيب جميع الطلاب المرتبطة بالعائلات
+                var allStudents = (await _unitOfWork.Repository<Student>()
+                    .FindAsync(s => familyIdList.Contains(s.FamilyId.Value) && !s.IsDeleted))
+                    .ToList();
+
+                // بناء استجابة لكل عائلة
+                foreach (var family in families)
+                {
+                    var familyTeachers = family.SupervisorId.HasValue
+                        ? allTeachers.Where(t => t.SupervisorId == family.SupervisorId).ToList()
+                        : new List<Teacher>();
+
+                    var familyStudents = allStudents.Where(s => s.FamilyId == family.Id).ToList();
+
+                    familyDetailsList.Add(new FamilyDetailsDto
+                    {
+                        FamilyId = family.Id,
+                        FamilyName = family.FamilyName,
+                        Teachers = _mapper.Map<List<TeacherResponseDto>>(familyTeachers),
+                        Students = _mapper.Map<List<StudentResponseDto>>(familyStudents),
+                        TotalTeachers = familyTeachers.Count,
+                        TotalStudents = familyStudents.Count
+                    });
+                }
+
+                return Result<List<FamilyDetailsDto>>.Success(familyDetailsList);
+            }
+            catch (Exception ex)
+            {
+                return Result<List<FamilyDetailsDto>>.Failure($"خطأ في جلب تفاصيل العائلات: {ex.Message}");
+            }
+        }
     }
 }

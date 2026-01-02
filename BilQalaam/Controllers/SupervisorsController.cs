@@ -1,6 +1,5 @@
 using BilQalaam.Application.DTOs.Common;
 using BilQalaam.Application.DTOs.Supervisors;
-using BilQalaam.Application.Exceptions;
 using BilQalaam.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -29,27 +28,26 @@ namespace BilQalaam.Api.Controllers
 
         // ? GET: api/Supervisors/get
         [HttpGet("get")]
-        public async Task<IActionResult> GetAll([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> GetAll(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? searchText = null)
         {
             if (pageNumber < 1) pageNumber = 1;
             if (pageSize < 1) pageSize = 10;
 
-            var (supervisors, totalCount) = await _supervisorService.GetAllAsync(pageNumber, pageSize);
-            var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
+            var result = await _supervisorService.GetAllAsync(pageNumber, pageSize, searchText);
 
-            var paginatedResponse = new PaginatedResponseDto<SupervisorResponseDto>
-            {
-                Items = supervisors,
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                TotalCount = totalCount,
-                PagesCount = pagesCount
-            };
-
-            return Ok(ApiResponseDto<PaginatedResponseDto<SupervisorResponseDto>>.Success(
-                paginatedResponse,
-                " „ «” —Ã«⁄ «·„‘—›Ì‰ »‰Ã«Õ"
-            ));
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<PaginatedResponseDto<SupervisorResponseDto>>.Success(
+                    result.Data!,
+                    " „ «” —Ã«⁄ «·„‘—›Ì‰ »‰Ã«Õ"
+                ))
+                : BadRequest(ApiResponseDto<PaginatedResponseDto<SupervisorResponseDto>>.Fail(
+                    result.Errors,
+                    "›‘· ›Ì Ã·» «·„‘—›Ì‰",
+                    400
+                ));
         }
 
         // ? GET: api/Supervisors/get/{id}
@@ -125,6 +123,38 @@ namespace BilQalaam.Api.Controllers
                 return BadRequest(ApiResponseDto<bool>.Fail(result.Errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
 
             return Ok(ApiResponseDto<bool>.Success(result.Data, " „ Õ–› «·„‘—› »‰Ã«Õ"));
+        }
+        [HttpGet("details")]
+        public async Task<IActionResult> GetSupervisorDetails(
+            [FromQuery(Name = "ids")] IEnumerable<int>? ids = null)
+        {
+            // «· Õﬁﬁ „‰ √‰ Â‰«ﬂ „⁄—› Ê«Õœ ⁄·Ï «·√ﬁ·
+            if (ids == null || !ids.Any())
+            {
+                return BadRequest(ApiResponseDto<object>.Fail(
+                    new List<string> { "ÌÃ»  ÕœÌœ „⁄—› Ê«Õœ ⁄·Ï «·√ﬁ·" },
+                    "»Ì«‰«  „›ﬁÊœ…",
+                    400
+                ));
+            }
+
+            var distinctIds = ids.Distinct().ToList();
+
+            // ·Ê »⁄  single ID
+            if (distinctIds.Count == 1)
+            {
+                var singleId = distinctIds.First();
+                var result = await _supervisorService.GetSupervisorDetailsAsync(singleId);
+                return result.IsSuccess
+                    ? Ok(ApiResponseDto<SupervisorDetailsDto>.Success(result.Data!, " „ «” —Ã«⁄  ›«’Ì· «·„‘—› »‰Ã«Õ"))
+                    : NotFound(ApiResponseDto<SupervisorDetailsDto>.Fail(result.Errors, "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ", 404));
+            }
+
+            // ·Ê »⁄  ⁄œ… IDs
+            var multipleResult = await _supervisorService.GetMultipleSupervisorsDetailsAsync(distinctIds);
+            return multipleResult.IsSuccess
+                ? Ok(ApiResponseDto<List<SupervisorDetailsDto>>.Success(multipleResult.Data!, " „ «” —Ã«⁄  ›«’Ì· «·„‘—›Ì‰ »‰Ã«Õ"))
+                : NotFound(ApiResponseDto<List<SupervisorDetailsDto>>.Fail(multipleResult.Errors, "›‘· ›Ì Ã·» «·»Ì«‰« ", 404));
         }
     }
 }

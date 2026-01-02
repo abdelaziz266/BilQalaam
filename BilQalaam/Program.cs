@@ -12,6 +12,7 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
 // =====================
 // Infrastructure
 // =====================
@@ -123,22 +124,47 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
-
 // =====================
 // Auto Apply Migrations + Seed
 // =====================
 using (var scope = app.Services.CreateScope())
 {
-    try
+    var dbContext = scope.ServiceProvider.GetRequiredService<BilQalaamDbContext>();
+    dbContext.Database.Migrate();
+
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+    const string superAdminEmail = "superadmin@bilqalaam.com";
+    const string superAdminPassword = "Aa@12345#";
+    const string superAdminRole = "SuperAdmin";
+
+    if (!await roleManager.RoleExistsAsync(superAdminRole))
     {
-        var dbContext = scope.ServiceProvider.GetRequiredService<BilQalaamDbContext>();
-        dbContext.Database.Migrate();
+        await roleManager.CreateAsync(new IdentityRole(superAdminRole));
     }
-    catch (Exception ex)
+
+    var superAdminUser = await userManager.FindByEmailAsync(superAdminEmail);
+    if (superAdminUser == null)
     {
-        Console.WriteLine(ex.Message);
+        superAdminUser = new ApplicationUser
+        {
+            UserName = superAdminEmail,
+            Email = superAdminEmail,
+            FullName = "Super Admin",
+            Role = BilQalaam.Domain.Enums.UserRole.SuperAdmin,
+            EmailConfirmed = true,
+            PhoneNumber = "0000000000"
+        };
+
+        var result = await userManager.CreateAsync(superAdminUser, superAdminPassword);
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(superAdminUser, superAdminRole);
+        }
     }
 }
+
 
 
 // =====================

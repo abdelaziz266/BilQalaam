@@ -36,7 +36,8 @@ namespace BilQalaam.Application.Services
             IEnumerable<int>? familyIds,
             IEnumerable<int>? teacherIds,
             string role,
-            string userId)
+            string userId,
+            string? searchText = null)
         {
             try
             {
@@ -45,6 +46,14 @@ namespace BilQalaam.Application.Services
                     .Query()
                     .Include(s => s.Family)
                     .Include(s => s.Teacher);
+
+                // Search by name, email, or phone number
+                if (!string.IsNullOrWhiteSpace(searchText))
+                {
+                    var lowerSearchText = searchText.ToLower();
+                    query = query.Where(s =>
+                        s.StudentName.ToLower().Contains(lowerSearchText));
+                }
 
                 // Apply filters
                 if (familyIds?.Any() == true)
@@ -207,6 +216,7 @@ namespace BilQalaam.Application.Services
                 var student = new Student
                 {
                     StudentName = dto.FullName,
+                    CountryCode = dto.CountryCode,
                     PhoneNumber = dto.PhoneNumber,
                     Email = dto.Email,
                     HourlyRate = dto.HourlyRate,
@@ -262,6 +272,7 @@ namespace BilQalaam.Application.Services
                     return Result<bool>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
 
                 student.StudentName = dto.FullName;
+                student.CountryCode = dto.CountryCode;
                 student.PhoneNumber = dto.PhoneNumber;
                 student.HourlyRate = dto.HourlyRate;
                 student.Currency = dto.Currency;
