@@ -1,17 +1,22 @@
+using AutoMapper;
 using BilQalaam.Application.DTOs.Invoices;
 using BilQalaam.Application.Interfaces;
+using BilQalaam.Application.Results;
 using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace BilQalaam.Application.Services
 {
     public class InvoiceService : IInvoiceService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IMapper _mapper;
 
-        public InvoiceService(IUnitOfWork unitOfWork)
+        public InvoiceService(IUnitOfWork unitOfWork, IMapper mapper = null)
         {
             _unitOfWork = unitOfWork;
+            _mapper = mapper;
         }
 
         // ?? ›« Ê—… «·⁄«∆·…
@@ -301,5 +306,238 @@ namespace BilQalaam.Application.Services
 
             return invoices;
         }
+
+        /// <summary>
+        /// Get all lessons (invoices) between date range
+        /// Default: from first day of current month to today
+        /// userRole: to determine if we should include teacher name
+        /// </summary>
+        public async Task<Result<List<LessonInvoiceDto>>> GetAllLessonsInvoicesAsync(DateTime? fromDate = null, DateTime? toDate = null, string? userRole = null)
+        {
+            try
+            {
+                //  ÕœÌœ «· Ê«—ÌŒ «·«› —«÷Ì…
+                var today = DateTime.Now.Date;
+                var firstDayOfMonth = new DateTime(today.Year, today.Month, 1);
+
+                fromDate ??= firstDayOfMonth;
+                toDate ??= today;
+
+                //  √ﬂœ „‰ √‰ fromDate Ì”»ﬁ toDate
+                if (fromDate > toDate)
+                {
+                    return Result<List<LessonInvoiceDto>>.Failure(" «—ÌŒ «·»œ«Ì… ÌÃ» √‰ ÌﬂÊ‰ ﬁ»·  «—ÌŒ «·‰Â«Ì…");
+                }
+
+                // ÃÌ» ﬂ· «·œ—Ê” ›Ì ‰ÿ«ﬁ «· «—ÌŒ
+                var lessons = await _unitOfWork.Repository<Lesson>()
+                    .Query()
+                    .Include(l => l.Teacher)
+                    .Include(l => l.Student)
+                    .Where(l => l.LessonDate >= fromDate && l.LessonDate <= toDate && !l.IsDeleted)
+                    .OrderByDescending(l => l.LessonDate)
+                    .ToListAsync();
+
+                if (!lessons.Any())
+                {
+                    return Result<List<LessonInvoiceDto>>.Success(new List<LessonInvoiceDto>()); 
+                }
+
+                //  ÕÊÌ· «·œ—Ê” ≈·Ï LessonInvoiceDto
+                // «ŸÂ— «”„ «·„⁄·„ ›ﬁÿ ·‹ Admin √Ê Supervisor
+                var isAdminOrSupervisor = userRole == "SuperAdmin" || userRole == "Admin";
+
+                var lessonInvoices = lessons.Select(l => new LessonInvoiceDto
+                {
+                    LessonId = l.Id,
+                    LessonDate = l.LessonDate,
+                    StudentId = l.StudentId,
+                    StudentName = l.Student?.StudentName ?? "«”„ €Ì— „ «Õ",
+                    TeacherName = isAdminOrSupervisor ? l.Teacher?.TeacherName : null,
+                    DurationHours = l.DurationMinutes ,
+                    Evaluation = l.Evaluation
+                }).ToList();
+
+                return Result<List<LessonInvoiceDto>>.Success(lessonInvoices);
+            }
+            catch (Exception ex)
+            {
+                return Result<List<LessonInvoiceDto>>.Failure($"Œÿ√ ›Ì Ã·» «·œ—Ê”: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Get all lessons (invoices) with role-based filtering and teacher summary
+        /// </summary>
+        public async Task<Result<LessonsInvoicesResponseDto>> GetLessonsInvoicesWithSummaryAsync(
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            int? teacherIdFilter = null,
+            int? familyIdFilter = null,
+            string? userRole = null,
+            string? userId = null)
+        {
+            try
+            {
+                //  ÕœÌœ «· Ê«—ÌŒ «·«› —«÷Ì…
+                var today = DateTime.Now.Date;
+                var firstDayOfMonth = new DateTime(today.Year, today.Month, 1);
+
+                fromDate ??= firstDayOfMonth;
+                toDate ??= today;
+
+                //  √ﬂœ „‰ √‰ fromDate Ì”»ﬁ toDate
+                if (fromDate > toDate)
+                {
+                    return Result<LessonsInvoicesResponseDto>.Failure(" «—ÌŒ «·»œ«Ì… ÌÃ» √‰ ÌﬂÊ‰ ﬁ»·  «—ÌŒ «·‰Â«Ì…");
+                }
+
+                // ÃÌ» ﬂ· «·œ—Ê”
+                var lessonsQuery = _unitOfWork.Repository<Lesson>()
+                    .Query()
+                    .Include(l => l.Teacher)
+                    .Include(l => l.Student)
+                    .Where(l => l.LessonDate >= fromDate && l.LessonDate <= toDate && !l.IsDeleted);
+
+                //  ÿ»Ìﬁ «·›·« — Õ”» «·‹ Role
+                if (userRole == "Admin")
+                {
+                    // Admin: Ì‘Ê› ›ﬁÿ œ—Ê” «·„⁄·„Ì‰ «· «»⁄Ì‰ ·Â
+                    var supervisor = await GetSupervisorByUserId(userId);
+                    if (supervisor == null)
+                        return Result<LessonsInvoicesResponseDto>.Failure("·„ Ì „ «·⁄ÀÊ— ⁄·Ï »Ì«‰«  «·„‘—›");
+                    lessonsQuery = lessonsQuery.Where(l => l.Teacher.SupervisorId == supervisor.Id);
+                }
+                else if (userRole == "Teacher")
+                {
+                    // Teacher: Ì‘Ê› ›ﬁÿ œ—Ê”Â
+                    var teacher = await GetTeacherByUserId(userId);
+                    if (teacher == null)
+                        return Result<LessonsInvoicesResponseDto>.Failure("·„ Ì „ «·⁄ÀÊ— ⁄·Ï »Ì«‰«  «·„⁄·„");
+                    lessonsQuery = lessonsQuery.Where(l => l.TeacherId == teacher.Id);
+                }
+                else if (userRole == "Family")
+                {
+                    // Family: Ì‘Ê› ›ﬁÿ œ—Ê” ÿ·«»Â„
+                    var family = await GetFamilyByUserId(userId);
+                    if (family == null)
+                        return Result<LessonsInvoicesResponseDto>.Failure("·„ Ì „ «·⁄ÀÊ— ⁄·Ï »Ì«‰«  «·⁄«∆·…");
+                    lessonsQuery = lessonsQuery.Where(l => l.FamilyId == family.Id);
+                }
+                // SuperAdmin: Ì‘Ê› ﬂ· Õ«Ã…
+
+                //  ÿ»Ìﬁ «·›·« — «·≈÷«›Ì…
+                if (teacherIdFilter.HasValue && (userRole == "SuperAdmin" || userRole == "Admin"))
+                {
+                    lessonsQuery = lessonsQuery.Where(l => l.TeacherId == teacherIdFilter.Value);
+                }
+
+                if (familyIdFilter.HasValue && (userRole == "SuperAdmin" || userRole == "Admin" || userRole == "Teacher"))
+                {
+                    lessonsQuery = lessonsQuery.Where(l => l.FamilyId == familyIdFilter.Value);
+                }
+
+                var lessons = await lessonsQuery.OrderByDescending(l => l.LessonDate).ToListAsync();
+
+                if (!lessons.Any())
+                {
+                    return Result<LessonsInvoicesResponseDto>.Success(new LessonsInvoicesResponseDto
+                    {
+                        Lessons = new List<LessonInvoiceDto>(),
+                        TotalLessons = 0,
+                        TotalHours = 0,
+                        TotalAmount = 0
+                    });
+                }
+
+                //  ÕÊÌ· «·œ—Ê” ≈·Ï LessonInvoiceDto
+                var isAdminOrSupervisor = userRole == "SuperAdmin" || userRole == "Admin";
+
+                var lessonInvoices = lessons.Select(l => new LessonInvoiceDto
+                {
+                    LessonId = l.Id,
+                    LessonDate = l.LessonDate,
+                    StudentId = l.StudentId,
+                    StudentName = l.Student?.StudentName ?? "«”„ €Ì— „ «Õ",
+                    TeacherName = isAdminOrSupervisor ? l.Teacher?.TeacherName : null,
+                    DurationHours = l.DurationMinutes ,
+                    Evaluation = l.Evaluation
+                }).ToList();
+
+                // ÃÌ» »Ì«‰«  «·„⁄·„ ≈–«  „ «·›· —… »Â √Ê ≈–« ﬂ«‰ «·„” Œœ„ „⁄·„
+                TeacherSummaryDto? teacherSummary = null;
+
+                if (teacherIdFilter.HasValue)
+                {
+                    var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherIdFilter.Value);
+                    if (teacher != null)
+                    {
+                        var teacherLessons = lessons.Where(l => l.TeacherId == teacher.Id).ToList();
+                        teacherSummary = new TeacherSummaryDto
+                        {
+                            TeacherId = teacher.Id,
+                            TeacherName = teacher.TeacherName,
+                            HourlyRate = teacher.HourlyRate,
+                            Currency = teacher.Currency.ToString(),
+                            TotalHours = teacherLessons.Sum(l => l.DurationMinutes),
+                            TotalEarnings = teacherLessons.Sum(l => (l.DurationMinutes / 60m) * l.TeacherHourlyRate)
+                        };
+                    }
+                }
+                else if (userRole == "Teacher")
+                {
+                    var teacher = await GetTeacherByUserId(userId);
+                    if (teacher != null)
+                    {
+                        teacherSummary = new TeacherSummaryDto
+                        {
+                            TeacherId = teacher.Id,
+                            TeacherName = teacher.TeacherName,
+                            HourlyRate = teacher.HourlyRate,
+                            Currency = teacher.Currency.ToString(),
+                            TotalHours = lessons.Sum(l => l.DurationMinutes),
+                            TotalEarnings = lessons.Sum(l => (l.DurationMinutes / 60m) * l.TeacherHourlyRate)
+                        };
+                    }
+                }
+
+                var response = new LessonsInvoicesResponseDto
+                {
+                    Lessons = lessonInvoices,
+                    TeacherSummary = teacherSummary,
+                    TotalLessons = lessonInvoices.Count,
+                    TotalHours = lessonInvoices.Sum(l => l.DurationHours),
+                    TotalAmount = lessonInvoices.Sum(l => (l.DurationHours * (lessons.FirstOrDefault(x => x.Id == l.LessonId)?.StudentHourlyRate ?? 0)))
+                };
+
+                return Result<LessonsInvoicesResponseDto>.Success(response);
+            }
+            catch (Exception ex)
+            {
+                return Result<LessonsInvoicesResponseDto>.Failure($"Œÿ√ ›Ì Ã·» «·œ—Ê”: {ex.Message}");
+            }
+        }
+
+        #region Private Helpers
+
+        private async Task<Teacher?> GetTeacherByUserId(string userId)
+        {
+            var teachers = await _unitOfWork.Repository<Teacher>().FindAsync(t => t.UserId == userId);
+            return teachers.FirstOrDefault();
+        }
+
+        private async Task<Supervisor?> GetSupervisorByUserId(string userId)
+        {
+            var supervisors = await _unitOfWork.Repository<Supervisor>().FindAsync(s => s.UserId == userId);
+            return supervisors.FirstOrDefault();
+        }
+
+        private async Task<Family?> GetFamilyByUserId(string userId)
+        {
+            var families = await _unitOfWork.Repository<Family>().FindAsync(f => f.UserId == userId);
+            return families.FirstOrDefault();
+        }
+
+        #endregion
     }
 }

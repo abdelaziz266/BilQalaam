@@ -151,5 +151,67 @@ namespace BilQalaam.Api.Controllers
                 " „ «” —Ã«⁄ ›Ê« Ì— «·„⁄·„Ì‰ »‰Ã«Õ"
             ));
         }
+
+        // ? GET: api/Invoices/Lessons?fromDate=...&toDate=...
+        /// <summary>
+        /// Get all lessons (invoices) between date range
+        /// Default: from first day of current month to today
+        /// Teacher name only shown for Admin/SuperAdmin
+        /// </summary>
+        [HttpGet("Lessons")]
+        public async Task<IActionResult> GetAllLessonsInvoices([FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null)
+        {
+            var userRole = GetCurrentUserRole();
+            var result = await _invoiceService.GetAllLessonsInvoicesAsync(fromDate, toDate, userRole);
+
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<List<LessonInvoiceDto>>.Success(
+                    result.Data!,
+                    " „ Ã·» «·œ—Ê” »‰Ã«Õ"
+                ))
+                : BadRequest(ApiResponseDto<List<LessonInvoiceDto>>.Fail(
+                    result.Errors,
+                    "›‘· ›Ì Ã·» «·œ—Ê”",
+                    400
+                ));
+        }
+
+        // ? GET: api/Invoices/LessonsWithSummary?fromDate=...&toDate=...&teacherIdFilter=...&familyIdFilter=...
+        /// <summary>
+        /// Get all lessons with teacher summary and role-based filtering
+        /// SuperAdmin/Admin: Ì‘Ê›Ê« ﬂ· «·œ—Ê” ÊÌﬁœ—Ê Ì›· —Ê« » teacherId √Ê familyId
+        /// Admin: Ì‘Ê› ›ﬁÿ œ—Ê” «·„⁄·„Ì‰ «· «»⁄Ì‰ ·Â
+        /// Teacher: Ì‘Ê› ›ﬁÿ œ—Ê”Â ÊÌﬁœ— Ì›· — » familyId
+        /// Family: Ì‘Ê› ›ﬁÿ œ—Ê” ÿ·«»Â„
+        /// </summary>
+        [HttpGet("LessonsWithSummary")]
+        public async Task<IActionResult> GetLessonsInvoicesWithSummary(
+            [FromQuery] DateTime? fromDate = null,
+            [FromQuery] DateTime? toDate = null,
+            [FromQuery] int? teacherIdFilter = null,
+            [FromQuery] int? familyIdFilter = null)
+        {
+            var userRole = GetCurrentUserRole();
+            var userId = GetCurrentUserId();
+            
+            var result = await _invoiceService.GetLessonsInvoicesWithSummaryAsync(
+                fromDate,
+                toDate,
+                teacherIdFilter,
+                familyIdFilter,
+                userRole,
+                userId);
+
+            return result.IsSuccess
+                ? Ok(ApiResponseDto<LessonsInvoicesResponseDto>.Success(
+                    result.Data!,
+                    " „ Ã·» «·œ—Ê” »‰Ã«Õ"
+                ))
+                : BadRequest(ApiResponseDto<LessonsInvoicesResponseDto>.Fail(
+                    result.Errors,
+                    "›‘· ›Ì Ã·» «·œ—Ê”",
+                    400
+                ));
+        }
     }
 }
