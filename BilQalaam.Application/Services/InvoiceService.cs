@@ -397,8 +397,10 @@ namespace BilQalaam.Application.Services
                     .Query()
                     .Include(l => l.Teacher)
                     .Include(l => l.Student)
-                    .Where(l => l.LessonDate >= fromDate && l.LessonDate <= toDate && !l.IsDeleted);
-
+                    .Where(l =>
+                                l.LessonDate.Date >= fromDate.Value.Date &&
+                                l.LessonDate.Date <= toDate.Value.Date &&
+                                l.IsDeleted != true);
                 // ÊØÈíÞ ÇáÝáÇÊÑ ÍÓÈ ÇáÜ Role
                 if (userRole == "Admin")
                 {

@@ -26,7 +26,7 @@ namespace BilQalaam.Infrastructure.Auth
                 new Claim(ClaimTypes.Name, user.FullName ?? ""),
                 new Claim(ClaimTypes.Role, user.Role?.ToString() ?? "")
             };
-
+            
             var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(_config["Jwt:Key"]!)
             );

@@ -171,13 +171,12 @@ using (var scope = app.Services.CreateScope())
 // Middleware
 // =====================
 
-app.UseSwagger();
+
+    app.UseSwagger();
     app.UseSwaggerUI();
 
-if (!app.Environment.IsProduction())
-{
     app.UseHttpsRedirection();
-}
+
 
 // 🔥 Exception Handler Middleware (قبل CORS)
 app.UseMiddleware<ExceptionHandlerMiddleware>();
