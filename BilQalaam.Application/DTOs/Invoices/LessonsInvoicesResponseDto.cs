@@ -11,6 +11,9 @@ namespace BilQalaam.Application.DTOs.Invoices
         // ???? ÈíÇäÇÊ ÇáãÚáã (ÅĞÇ Êã ÇáİáÊÑÉ ÈãÚáã ãÚíä Ãæ ÅĞÇ ßÇä ÇáãÓÊÎÏã ãÚáã)
         public TeacherSummaryDto? TeacherSummary { get; set; }
 
+        // ?????? ??????? SuperAdmin
+        public SuperAdminSummaryDto? SuperAdminSummary { get; set; }
+
         // ?? ÅÍÕÇÆíÇÊ ÚÇãÉ
         public int TotalLessons { get; set; }
         public decimal TotalHours { get; set; }
@@ -31,5 +34,17 @@ namespace BilQalaam.Application.DTOs.Invoices
 
         // ?? ÅÌãÇáí İáæÓ ÇáãÚáã
         public decimal TotalEarnings { get; set; }
+    }
+
+    public class SuperAdminSummaryDto
+    {
+        // ?? ÅÌãÇáí ÚÏÏ ÇáÓÇÚÇÊ
+        public decimal TotalHours { get; set; }
+
+        // ?? ÅÌãÇáí ÇáãÈáÛ ÈÇáÏæáÇÑ ÇáÃãÑíßí (USD)
+        public decimal TotalAmountUSD { get; set; }
+
+        // ?? ÅÌãÇáí ÇáãÈáÛ ÈÇáÌäíå ÇáãÕÑí (EGP)
+        public decimal TotalAmountEGP { get; set; }
     }
 }

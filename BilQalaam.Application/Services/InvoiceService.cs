@@ -4,6 +4,7 @@ using BilQalaam.Application.Interfaces;
 using BilQalaam.Application.Results;
 using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
+using BilQalaam.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace BilQalaam.Application.Services
@@ -462,7 +463,7 @@ namespace BilQalaam.Application.Services
                     StudentId = l.StudentId,
                     StudentName = l.Student?.StudentName ?? "ÇÓã ÛíÑ ãÊÇÍ",
                     TeacherName = isAdminOrSupervisor ? l.Teacher?.TeacherName : null,
-                    DurationHours = l.DurationMinutes ,
+                    DurationHours = l.DurationMinutes / 60m,
                     Evaluation = l.Evaluation
                 }).ToList();
 
@@ -481,7 +482,7 @@ namespace BilQalaam.Application.Services
                             TeacherName = teacher.TeacherName,
                             HourlyRate = teacher.HourlyRate,
                             Currency = teacher.Currency.ToString(),
-                            TotalHours = teacherLessons.Sum(l => l.DurationMinutes),
+                            TotalHours = teacherLessons.Sum(l => l.DurationMinutes / 60m),
                             TotalEarnings = teacherLessons.Sum(l => (l.DurationMinutes / 60m) * l.TeacherHourlyRate)
                         };
                     }
@@ -497,7 +498,7 @@ namespace BilQalaam.Application.Services
                             TeacherName = teacher.TeacherName,
                             HourlyRate = teacher.HourlyRate,
                             Currency = teacher.Currency.ToString(),
-                            TotalHours = lessons.Sum(l => l.DurationMinutes),
+                            TotalHours = lessons.Sum(l => l.DurationMinutes/60m),
                             TotalEarnings = lessons.Sum(l => (l.DurationMinutes / 60m) * l.TeacherHourlyRate)
                         };
                     }
@@ -511,6 +512,25 @@ namespace BilQalaam.Application.Services
                     TotalHours = lessonInvoices.Sum(l => l.DurationHours),
                     TotalAmount = lessonInvoices.Sum(l => (l.DurationHours * (lessons.FirstOrDefault(x => x.Id == l.LessonId)?.StudentHourlyRate ?? 0)))
                 };
+
+                // ÝÇÊæÑÉ ÇáÓæÈÑ ÃÏãä
+                if (userRole == "SuperAdmin")
+                {
+                    var totalHours = lessons.Sum(l => l.DurationMinutes / 60m);
+                    var totalAmountUSD = lessons
+                        .Where(l => l.Currency == Currency.USD)
+                        .Sum(l => (l.DurationMinutes / 60m) * l.StudentHourlyRate);
+                    var totalAmountEGP = lessons
+                        .Where(l => l.Currency == Currency.EGP)
+                        .Sum(l => (l.DurationMinutes / 60m) * l.StudentHourlyRate);
+
+                    response.SuperAdminSummary = new SuperAdminSummaryDto
+                    {
+                        TotalHours = totalHours,
+                        TotalAmountUSD = totalAmountUSD,
+                        TotalAmountEGP = totalAmountEGP
+                    };
+                }
 
                 return Result<LessonsInvoicesResponseDto>.Success(response);
             }
