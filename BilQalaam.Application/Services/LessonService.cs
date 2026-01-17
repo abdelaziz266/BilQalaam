@@ -136,7 +136,11 @@ namespace BilQalaam.Application.Services
             try
             {
                 // Validate student
-                var student = await _unitOfWork.Repository<Student>().GetByIdAsync(dto.StudentId);
+                var student = await _unitOfWork.Repository<Student>()
+                    .Query()
+                    .Include(s => s.Family)
+                    .FirstOrDefaultAsync(s => s.Id == dto.StudentId);
+                
                 if (student == null)
                     return Result<int>.Failure("الطالب غير موجود");
 
@@ -192,6 +196,10 @@ namespace BilQalaam.Application.Services
 
                 var teacherEntity = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
 
+                // استخدام سعر العائلة فقط
+                decimal studentHourlyRate = student.Family != null ? student.Family.HourlyRate : 0;
+                var currency = student.Family != null ? student.Family.Currency : 0;
+
                 var lesson = new Lesson
                 {
                     StudentId = dto.StudentId,
@@ -201,10 +209,11 @@ namespace BilQalaam.Application.Services
                     LessonDate = dto.LessonDate,
                     DurationMinutes = dto.DurationMinutes,
                     Notes = dto.Notes,
+                    IsAbsent = dto.IsAbsent,
                     Evaluation = dto.Evaluation,
-                    StudentHourlyRate = student.HourlyRate,
+                    StudentHourlyRate = studentHourlyRate,
                     TeacherHourlyRate = teacherEntity!.HourlyRate,
-                    Currency = student.Currency,
+                    Currency = currency,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = userId
                 };
@@ -229,15 +238,21 @@ namespace BilQalaam.Application.Services
                     return Result<bool>.Failure("الدرس غير موجود");
 
                 var studentIdToUse = dto.StudentId ?? lesson.StudentId;
-                var student = await _unitOfWork.Repository<Student>().GetByIdAsync(studentIdToUse);
+                var student = await _unitOfWork.Repository<Student>()
+                    .Query()
+                    .Include(s => s.Family)
+                    .FirstOrDefaultAsync(s => s.Id == studentIdToUse);
+                
                 if (student == null)
                     return Result<bool>.Failure("الطالب غير موجود");
 
                 // Update lesson fields
                 lesson.StudentId = student.Id;
                 lesson.FamilyId = student.FamilyId ?? 0;
-                lesson.StudentHourlyRate = student.HourlyRate;
-                lesson.Currency = student.Currency;
+                
+                // استخدام سعر العائلة فقط
+                lesson.StudentHourlyRate = student.Family != null ? student.Family.HourlyRate : 0;
+                lesson.Currency = student.Family != null ? student.Family.Currency : 0;
 
                 if (dto.LessonDate.HasValue)
                     lesson.LessonDate = dto.LessonDate.Value;
@@ -247,6 +262,9 @@ namespace BilQalaam.Application.Services
 
                 if (dto.Notes != null)
                     lesson.Notes = dto.Notes;
+
+                if (dto.IsAbsent.HasValue)
+                    lesson.IsAbsent = dto.IsAbsent.Value;
 
                 if (dto.Evaluation.HasValue)
                     lesson.Evaluation = dto.Evaluation.Value;

@@ -25,6 +25,9 @@ public class Lesson:Base
     public int DurationMinutes { get; set; }
     public string? Notes { get; set; }
 
+    // 🛑 الحضور
+    public bool IsAbsent { get; set; } = false;
+
     // ⭐ تقييم الدرس
     public LessonEvaluation? Evaluation { get; set; }
 

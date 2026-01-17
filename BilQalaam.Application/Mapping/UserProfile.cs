@@ -75,11 +75,7 @@ namespace BilQalaam.Application.Mapping
                 .ForMember(dest => dest.FamilyName,
                     opt => opt.MapFrom(src => src.Family != null ? src.Family.FamilyName : null))
                 .ForMember(dest => dest.TeacherName,
-                    opt => opt.MapFrom(src => src.Teacher != null ? src.Teacher.TeacherName : null))
-                .ForMember(dest => dest.Email,
-                    opt => opt.MapFrom(src => src.User != null ? src.User.Email : src.Email))
-                .ForMember(dest => dest.PhoneNumber,
-                    opt => opt.MapFrom(src => src.User != null ? src.User.PhoneNumber : src.PhoneNumber));
+                    opt => opt.MapFrom(src => src.Teacher != null ? src.Teacher.TeacherName : null));
         }
     }
 }

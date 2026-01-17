@@ -58,22 +58,24 @@ namespace BilQalaam.Api.Controllers
                 ? Ok(ApiResponseDto<StudentResponseDto>.Success(result.Data!, " „ «” —Ã«⁄ «·ÿ«·» »‰Ã«Õ"))
                 : NotFound(ApiResponseDto<StudentResponseDto>.Fail(result.Errors, "·„ Ì „ «·⁄ÀÊ— ⁄·ÌÂ", 404));
         }
-
+        /// <summary>
+        /// Create multiple students at once
+        /// </summary>
         [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpPost("create")]
-        public async Task<IActionResult> Create([FromBody] CreateStudentDto dto)
+        public async Task<IActionResult> Create([FromBody] CreateMultipleStudentsDto dto)
         {
             if (!ModelState.IsValid)
             {
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
-                return BadRequest(ApiResponseDto<int>.Fail(errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
+                return BadRequest(ApiResponseDto<IEnumerable<int>>.Fail(errors, "›‘· «· Õﬁﬁ „‰ «·»Ì«‰« ", 400));
             }
 
-            var result = await _studentService.CreateAsync(dto, GetCurrentUserRole(), GetCurrentUserId());
+            var result = await _studentService.CreateMultipleAsync(dto, GetCurrentUserRole(), GetCurrentUserId());
 
             return result.IsSuccess
-                ? Ok(ApiResponseDto<int>.Success(result.Data, " „ ≈‰‘«¡ «·ÿ«·» »‰Ã«Õ", 201))
-                : BadRequest(ApiResponseDto<int>.Fail(result.Errors, "›‘· ›Ì ≈‰‘«¡ «·ÿ«·»", 400));
+                ? Ok(ApiResponseDto<IEnumerable<int>>.Success(result.Data!, " „ ≈‰‘«¡ «·ÿ·«» »‰Ã«Õ", 201))
+                : BadRequest(ApiResponseDto<IEnumerable<int>>.Fail(result.Errors, "›‘· ›Ì ≈‰‘«¡ «·ÿ·«»", 400));
         }
 
         [Authorize(Roles = "SuperAdmin")]

@@ -5,8 +5,6 @@ using BilQalaam.Application.Interfaces;
 using BilQalaam.Application.Results;
 using BilQalaam.Application.UnitOfWork;
 using BilQalaam.Domain.Entities;
-using BilQalaam.Domain.Enums;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace BilQalaam.Application.Services
@@ -15,19 +13,13 @@ namespace BilQalaam.Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
-        private readonly UserManager<ApplicationUser> _userManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
 
         public StudentService(
             IUnitOfWork unitOfWork,
-            IMapper mapper,
-            UserManager<ApplicationUser> userManager,
-            RoleManager<IdentityRole> roleManager)
+            IMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
-            _userManager = userManager;
-            _roleManager = roleManager;
         }
 
         public async Task<Result<PaginatedResponseDto<StudentResponseDto>>> GetAllAsync(
@@ -47,7 +39,6 @@ namespace BilQalaam.Application.Services
                     .Include(s => s.Family)
                     .Include(s => s.Teacher);
 
-                // Search by name, email, or phone number
                 if (!string.IsNullOrWhiteSpace(searchText))
                 {
                     var lowerSearchText = searchText.ToLower();
@@ -55,7 +46,6 @@ namespace BilQalaam.Application.Services
                         s.StudentName.ToLower().Contains(lowerSearchText));
                 }
 
-                // Apply filters
                 if (familyIds?.Any() == true)
                 {
                     var familyIdSet = new HashSet<int>(familyIds);
@@ -68,7 +58,6 @@ namespace BilQalaam.Application.Services
                     query = query.Where(s => teacherIdSet.Contains(s.TeacherId));
                 }
 
-                // Apply role-based filter
                 if (role == "Teacher")
                 {
                     var teacher = await GetTeacherByUserId(userId);
@@ -85,7 +74,6 @@ namespace BilQalaam.Application.Services
 
                     query = query.Where(s => s.Teacher.SupervisorId == supervisor.Id);
                 }
-                // SuperAdmin sees all
 
                 var totalCount = await query.CountAsync();
                 var students = await query
@@ -124,7 +112,6 @@ namespace BilQalaam.Application.Services
                 if (student == null)
                     return Result<StudentResponseDto>.Failure("«·ÿ«·» €Ì— „ÊÃÊœ");
 
-                // Role-based access check
                 if (role == "Teacher")
                 {
                     var teacher = await GetTeacherByUserId(userId);
@@ -148,96 +135,105 @@ namespace BilQalaam.Application.Services
 
         public async Task<Result<int>> CreateAsync(CreateStudentDto dto, string role, string userId)
         {
-            using var transaction = await _unitOfWork.BeginTransactionAsync();
-
             try
             {
-                // Validate email
-                var existingUserByEmail = await _userManager.Users
-                    .FirstOrDefaultAsync(u => u.Email == dto.Email && !u.IsDeleted);
-                if (existingUserByEmail != null)
-                {
-                    await transaction.RollbackAsync();
-                    return Result<int>.Failure("«·»—Ìœ «·≈·ﬂ —Ê‰Ì „” Œœ„ »«·›⁄·");
-                }
-
                 // Validate student name
                 var existingStudents = await _unitOfWork.Repository<Student>().FindAsync(s => s.StudentName == dto.FullName);
                 if (existingStudents.Any())
                 {
-                    await transaction.RollbackAsync();
-                    return Result<int>.Failure("«”„ «·ÿ«·» „” Œœ„ »«·›⁄·");
+                    return Result<int>.Failure("«”„ «·ÿ«·» „ÊÃÊœ »«·›⁄·");
                 }
 
                 // Validate family
-                if (dto.FamilyId > 0)
+                var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
+                if (family == null)
                 {
-                    var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
-                    if (family == null)
-                    {
-                        await transaction.RollbackAsync();
-                        return Result<int>.Failure("«·⁄«∆·… €Ì— „ÊÃÊœ…");
-                    }
+                    return Result<int>.Failure("«·⁄«∆·… €Ì— „ÊÃÊœ…");
                 }
 
                 // Validate teacher
                 var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
                 if (teacher == null)
                 {
-                    await transaction.RollbackAsync();
                     return Result<int>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
                 }
-
-                // Create user
-                var user = new ApplicationUser
-                {
-                    UserName = dto.Email,
-                    Email = dto.Email,
-                    PhoneNumber = dto.PhoneNumber,
-                    FullName = dto.FullName,
-                    Role = UserRole.Student,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                var result = await _userManager.CreateAsync(user, dto.Password);
-                if (!result.Succeeded)
-                {
-                    await transaction.RollbackAsync();
-                    return Result<int>.Failure(result.Errors.Select(e => e.Description).ToList());
-                }
-
-                const string roleName = "Student";
-                if (!await _roleManager.RoleExistsAsync(roleName))
-                    await _roleManager.CreateAsync(new IdentityRole(roleName));
-
-                await _userManager.AddToRoleAsync(user, roleName);
 
                 // Create student
                 var student = new Student
                 {
                     StudentName = dto.FullName,
-                    CountryCode = dto.CountryCode,
-                    PhoneNumber = dto.PhoneNumber,
-                    Email = dto.Email,
-                    HourlyRate = dto.HourlyRate,
-                    Currency = dto.Currency,
                     FamilyId = dto.FamilyId,
                     TeacherId = dto.TeacherId,
-                    UserId = user.Id,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = userId
                 };
 
                 await _unitOfWork.Repository<Student>().AddAsync(student);
                 await _unitOfWork.CompleteAsync();
-                await transaction.CommitAsync();
 
                 return Result<int>.Success(student.Id);
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 return Result<int>.Failure($"Œÿ√ ›Ì ≈‰‘«¡ «·ÿ«·»: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<IEnumerable<int>>> CreateMultipleAsync(CreateMultipleStudentsDto dto, string role, string userId)
+        {
+            try
+            {
+                if (dto.Students == null || !dto.Students.Any())
+                {
+                    return Result<IEnumerable<int>>.Failure("ﬁ«∆„… «·ÿ·«» ›«—€…");
+                }
+
+                var createdStudentIds = new List<int>();
+
+                foreach (var studentDto in dto.Students)
+                {
+                    // Validate student name
+                    var existingStudents = await _unitOfWork.Repository<Student>().FindAsync(s => s.StudentName == studentDto.FullName);
+                    if (existingStudents.Any())
+                    {
+                        return Result<IEnumerable<int>>.Failure($"«”„ «·ÿ«·» {studentDto.FullName} „ÊÃÊœ »«·›⁄·");
+                    }
+
+                    // Validate family
+                    var family = await _unitOfWork.Repository<Family>().GetByIdAsync(studentDto.FamilyId);
+                    if (family == null)
+                    {
+                        return Result<IEnumerable<int>>.Failure($"«·⁄«∆·… €Ì— „ÊÃÊœ… ··ÿ«·» {studentDto.FullName}");
+                    }
+
+                    // Validate teacher
+                    var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(studentDto.TeacherId);
+                    if (teacher == null)
+                    {
+                        return Result<IEnumerable<int>>.Failure($"«·„⁄·„ €Ì— „ÊÃÊœ ··ÿ«·» {studentDto.FullName}");
+                    }
+
+                    // Create student
+                    var student = new Student
+                    {
+                        StudentName = studentDto.FullName,
+                        FamilyId = studentDto.FamilyId,
+                        TeacherId = studentDto.TeacherId,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = userId
+                    };
+
+                    await _unitOfWork.Repository<Student>().AddAsync(student);
+                    createdStudentIds.Add(student.Id);
+                }
+
+                await _unitOfWork.CompleteAsync();
+
+                return Result<IEnumerable<int>>.Success(createdStudentIds);
+            }
+            catch (Exception ex)
+            {
+                return Result<IEnumerable<int>>.Failure($"Œÿ√ ›Ì ≈‰‘«¡ «·ÿ·«»: {ex.Message}");
             }
         }
 
@@ -245,7 +241,11 @@ namespace BilQalaam.Application.Services
         {
             try
             {
-                var student = await _unitOfWork.Repository<Student>().GetByIdAsync(id);
+                var student = await _unitOfWork.Repository<Student>()
+                    .Query()
+                    .Include(s => s.Family)
+                    .FirstOrDefaultAsync(s => s.Id == id);
+                
                 if (student == null)
                     return Result<bool>.Failure("«·ÿ«·» €Ì— „ÊÃÊœ");
 
@@ -255,16 +255,13 @@ namespace BilQalaam.Application.Services
                     var existingStudent = await _unitOfWork.Repository<Student>()
                         .FindAsync(s => s.StudentName == dto.FullName && s.Id != id);
                     if (existingStudent.Any())
-                        return Result<bool>.Failure("«”„ «·ÿ«·» „” Œœ„ »«·›⁄·");
+                        return Result<bool>.Failure("«”„ «·ÿ«·» „ÊÃÊœ »«·›⁄·");
                 }
 
                 // Validate family
-                if (dto.FamilyId > 0)
-                {
-                    var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
-                    if (family == null)
-                        return Result<bool>.Failure("«·⁄«∆·… €Ì— „ÊÃÊœ…");
-                }
+                var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
+                if (family == null)
+                    return Result<bool>.Failure("«·⁄«∆·… €Ì— „ÊÃÊœ…");
 
                 // Validate teacher
                 var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
@@ -272,35 +269,10 @@ namespace BilQalaam.Application.Services
                     return Result<bool>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
 
                 student.StudentName = dto.FullName;
-                student.CountryCode = dto.CountryCode;
-                student.PhoneNumber = dto.PhoneNumber;
-                student.HourlyRate = dto.HourlyRate;
-                student.Currency = dto.Currency;
                 student.FamilyId = dto.FamilyId;
                 student.TeacherId = dto.TeacherId;
                 student.UpdatedAt = DateTime.UtcNow;
                 student.UpdatedBy = userId;
-
-                var user = await _userManager.FindByIdAsync(student.UserId);
-                if (user != null)
-                {
-                    user.FullName = dto.FullName;
-                    user.PhoneNumber = dto.PhoneNumber;
-                    user.UpdatedAt = DateTime.UtcNow;
-
-                    if (!string.IsNullOrWhiteSpace(dto.Password))
-                    {
-                        var removeResult = await _userManager.RemovePasswordAsync(user);
-                        if (!removeResult.Succeeded)
-                            return Result<bool>.Failure(removeResult.Errors.Select(e => e.Description).ToList());
-
-                        var addResult = await _userManager.AddPasswordAsync(user, dto.Password);
-                        if (!addResult.Succeeded)
-                            return Result<bool>.Failure(addResult.Errors.Select(e => e.Description).ToList());
-                    }
-
-                    await _userManager.UpdateAsync(user);
-                }
 
                 _unitOfWork.Repository<Student>().Update(student);
                 await _unitOfWork.CompleteAsync();
@@ -321,19 +293,9 @@ namespace BilQalaam.Application.Services
                 if (student == null)
                     return Result<bool>.Failure("«·ÿ«·» €Ì— „ÊÃÊœ");
 
-                // «· Õﬁﬁ „‰ ÊÃÊœ œ—Ê” „— »ÿ… »«·ÿ«·»
                 var lessons = await _unitOfWork.Repository<Lesson>().FindAsync(l => l.StudentId == id && !l.IsDeleted);
                 if (lessons.Any())
                     return Result<bool>.Failure("·« Ì„ﬂ‰ Õ–› «·ÿ«·» ·√‰ Â‰«ﬂ œ—Ê” „— »ÿ… »Â");
-
-                var studentUser = await _userManager.FindByIdAsync(student.UserId);
-                if (studentUser != null)
-                {
-                    studentUser.IsDeleted = true;
-                    studentUser.DeletedAt = DateTime.UtcNow;
-                    studentUser.DeletedBy = id.ToString();
-                    await _userManager.UpdateAsync(studentUser);
-                }
 
                 student.IsDeleted = true;
                 student.DeletedAt = DateTime.UtcNow;
@@ -378,15 +340,11 @@ namespace BilQalaam.Application.Services
 
         #endregion
 
-        /// <summary>
-        /// Get students by teacher ID
-        /// </summary>
         public async Task<Result<PaginatedResponseDto<StudentResponseDto>>> GetByTeacherIdAsync(
             int teacherId)
         {
             try
             {
-                // Validate teacher exists
                 var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(teacherId);
                 if (teacher == null)
                     return Result<PaginatedResponseDto<StudentResponseDto>>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
@@ -398,9 +356,7 @@ namespace BilQalaam.Application.Services
                     .Include(s => s.Teacher)
                     .Where(s => s.TeacherId == teacherId);
 
-                var students = await query
-                    .ToListAsync();
-
+                var students = await query.ToListAsync();
 
                 return Result<PaginatedResponseDto<StudentResponseDto>>.Success(new PaginatedResponseDto<StudentResponseDto>
                 {

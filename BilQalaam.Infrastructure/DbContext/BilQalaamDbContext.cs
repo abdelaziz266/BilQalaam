@@ -41,10 +41,6 @@ namespace BilQalaam.Infrastructure.Persistence
                 .Property(s => s.HourlyRate)
                 .HasPrecision(18, 2);
 
-            builder.Entity<Student>()
-                .Property(s => s.HourlyRate)
-                .HasPrecision(18, 2);
-
             builder.Entity<Lesson>()
                 .Property(l => l.StudentHourlyRate)
                 .HasPrecision(18, 2);
@@ -104,13 +100,6 @@ namespace BilQalaam.Infrastructure.Persistence
 
             // Supervisor → User relationship (One-to-One)
             builder.Entity<Supervisor>()
-                .HasOne(s => s.User)
-                .WithMany()
-                .HasForeignKey(s => s.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // Student → User relationship (One-to-One)
-            builder.Entity<Student>()
                 .HasOne(s => s.User)
                 .WithMany()
                 .HasForeignKey(s => s.UserId)

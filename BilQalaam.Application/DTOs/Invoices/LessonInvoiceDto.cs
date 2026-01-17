@@ -21,5 +21,7 @@ namespace BilQalaam.Application.DTOs.Invoices
 
         // ?  ﬁÌÌ„ «·ÿ«·» (enum „À· LessonResponseDto)
         public LessonEvaluation? Evaluation { get; set; }
+        public bool IsAbsent { get; set; } = false;
+
     }
 }

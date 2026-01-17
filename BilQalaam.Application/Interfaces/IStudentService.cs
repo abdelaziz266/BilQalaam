@@ -19,6 +19,8 @@ namespace BilQalaam.Application.Interfaces
 
         Task<Result<int>> CreateAsync(CreateStudentDto dto, string role, string userId);
 
+        Task<Result<IEnumerable<int>>> CreateMultipleAsync(CreateMultipleStudentsDto dto, string role, string userId);
+
         Task<Result<bool>> UpdateAsync(int id, UpdateStudentDto dto, string userId);
 
         Task<Result<bool>> DeleteAsync(int id);
