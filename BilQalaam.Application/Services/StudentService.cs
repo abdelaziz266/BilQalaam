@@ -236,45 +236,59 @@ namespace BilQalaam.Application.Services
                 return Result<IEnumerable<int>>.Failure($"ÎØÃ İí ÅäÔÇÁ ÇáØáÇÈ: {ex.Message}");
             }
         }
-
         public async Task<Result<bool>> UpdateAsync(int id, UpdateStudentDto dto, string userId)
         {
             try
             {
+                // 1?? ÌíÈ ÇáØÇáÈ (Tracked)
                 var student = await _unitOfWork.Repository<Student>()
                     .Query()
-                    .Include(s => s.Family)
                     .FirstOrDefaultAsync(s => s.Id == id);
-                
+
                 if (student == null)
                     return Result<bool>.Failure("ÇáØÇáÈ ÛíÑ ãæÌæÏ");
 
-                // Validate student name
+                // 2?? ÊÍŞŞ ãä ÇáÇÓã (áæ ÇÊÛíÑ)
                 if (student.StudentName != dto.FullName)
                 {
-                    var existingStudent = await _unitOfWork.Repository<Student>()
-                        .FindAsync(s => s.StudentName == dto.FullName && s.Id != id);
-                    if (existingStudent.Any())
+                    var exists = await _unitOfWork.Repository<Student>()
+                        .Query()
+                        .AnyAsync(s => s.StudentName == dto.FullName && s.Id != id);
+
+                    if (exists)
                         return Result<bool>.Failure("ÇÓã ÇáØÇáÈ ãæÌæÏ ÈÇáİÚá");
                 }
 
-                // Validate family
-                var family = await _unitOfWork.Repository<Family>().GetByIdAsync(dto.FamilyId);
-                if (family == null)
+                // 3?? ÊÍŞŞ ãä æÌæÏ ÇáÚÇÆáÉ (ÈÏæä Tracking)
+                var familyExists = await _unitOfWork.Repository<Family>()
+                    .Query()
+                    .AsNoTracking()
+                    .AnyAsync(f => f.Id == dto.FamilyId);
+
+                if (!familyExists)
                     return Result<bool>.Failure("ÇáÚÇÆáÉ ÛíÑ ãæÌæÏÉ");
 
-                // Validate teacher
-                var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
-                if (teacher == null)
+                // 4?? ÊÍŞŞ ãä æÌæÏ ÇáãÚáã (ÈÏæä Tracking)
+                var teacherExists = await _unitOfWork.Repository<Teacher>()
+                    .Query()
+                    .AsNoTracking()
+                    .AnyAsync(t => t.Id == dto.TeacherId);
+
+                if (!teacherExists)
                     return Result<bool>.Failure("ÇáãÚáã ÛíÑ ãæÌæÏ");
 
+                // 5?? ÇáÊÍÏíË (FK only)
                 student.StudentName = dto.FullName;
+
+                // ?? Ãåã ÓØÑíä
                 student.FamilyId = dto.FamilyId;
+
                 student.TeacherId = dto.TeacherId;
                 student.UpdatedAt = DateTime.UtcNow;
                 student.UpdatedBy = userId;
+                 _unitOfWork.Repository<Student>().Update(student);
 
-                _unitOfWork.Repository<Student>().Update(student);
+                // 6?? Save İŞØ (ÈÏæä Update)
                 await _unitOfWork.CompleteAsync();
 
                 return Result<bool>.Success(true);
