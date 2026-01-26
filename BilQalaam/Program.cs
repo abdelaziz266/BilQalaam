@@ -1,13 +1,14 @@
-﻿using BilQalaam.Application.Mapping;
+﻿using BilQalaam.Api;
+using BilQalaam.Application.Mapping;
 using BilQalaam.Domain.Entities;
 using BilQalaam.Infrastructure.Extensions;
 using BilQalaam.Infrastructure.Persistence;
-using BilQalaam.Api;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -61,7 +62,9 @@ builder.Services.AddAuthentication(options =>
 
         IssuerSigningKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)
-        )
+        ),
+        NameClaimType = ClaimTypes.NameIdentifier,
+        RoleClaimType = ClaimTypes.Role
     };
 });
 

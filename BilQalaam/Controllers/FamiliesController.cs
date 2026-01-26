@@ -7,7 +7,7 @@ using System.Security.Claims;
 
 namespace BilQalaam.Api.Controllers
 {
-    [Authorize(Roles = "SuperAdmin,Admin")]
+    [Authorize(Roles = "SuperAdmin,Admin,Teacher")]
     [Route("api/[controller]")]
     [ApiController]
     public class FamiliesController : ControllerBase

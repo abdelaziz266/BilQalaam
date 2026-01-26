@@ -37,7 +37,7 @@ namespace BilQalaam.Application.Services
             int pageSize,
             string role,
             string userId,
-            string? searchText = null)
+            string? searchText = null)     
         {
             try
             {
@@ -63,7 +63,14 @@ namespace BilQalaam.Application.Services
 
                     query = query.Where(f => f.SupervisorId == supervisor.Id);
                 }
+                if (role == "Teacher")
+                {
+                    var teacher = await GetTeacherByUserId(userId);
+                    if (teacher == null || !teacher.SupervisorId.HasValue)
+                        return Result<PaginatedResponseDto<FamilyResponseDto>>.Success(EmptyPaginatedResponse(pageNumber, pageSize));
 
+                    query = query.Where(f => f.SupervisorId == teacher.SupervisorId);
+                }
                 var totalCount = await query.CountAsync();
                 var families = await query
                     .Skip((pageNumber - 1) * pageSize)
@@ -105,6 +112,13 @@ namespace BilQalaam.Application.Services
                 {
                     var supervisor = await GetSupervisorByUserId(userId);
                     if (supervisor == null || family.SupervisorId != supervisor.Id)
+                        return Result<FamilyResponseDto>.Failure("العائلة غير موجودة");
+                }
+
+                if (role == "Teacher")
+                {
+                    var teacher = await GetTeacherByUserId(userId);
+                    if (teacher == null || !teacher.SupervisorId.HasValue || family.SupervisorId != teacher.SupervisorId)
                         return Result<FamilyResponseDto>.Failure("العائلة غير موجودة");
                 }
 
@@ -355,6 +369,12 @@ namespace BilQalaam.Application.Services
         {
             var supervisors = await _unitOfWork.Repository<Supervisor>().FindAsync(s => s.UserId == userId);
             return supervisors.FirstOrDefault();
+        }
+
+        private async Task<Teacher?> GetTeacherByUserId(string userId)
+        {
+            var teachers = await _unitOfWork.Repository<Teacher>().FindAsync(t => t.UserId == userId);
+            return teachers.FirstOrDefault();
         }
 
         private static PaginatedResponseDto<FamilyResponseDto> EmptyPaginatedResponse(int pageNumber, int pageSize)

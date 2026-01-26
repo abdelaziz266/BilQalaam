@@ -19,8 +19,11 @@ namespace BilQalaam.Infrastructure.Extensions
             this IServiceCollection services,
             IConfiguration configuration)
         {
+            services.AddMemoryCache();
+            services.AddHttpClient<ICurrencyService, CurrencyService>();
             
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+
             services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IUserService, UserService>();
@@ -32,6 +35,7 @@ namespace BilQalaam.Infrastructure.Extensions
             services.AddScoped<IInvoiceService, InvoiceService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IDashboardService, DashboardService>();
+
 
             return services;
         }
