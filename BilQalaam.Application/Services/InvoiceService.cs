@@ -138,10 +138,47 @@ namespace BilQalaam.Application.Services
 
                     }
                 }
+
+                FamilySummaryDto? familySummary = null;
+                if (familyIdFilter.HasValue)
+                {
+                    var family = await _unitOfWork.Repository<Family>().GetByIdAsync(familyIdFilter.Value);
+                    if (family != null)
+                    {
+                        var familyLessons = lessons.Where(l => l.FamilyId == family.Id).ToList();
+                        familySummary = new FamilySummaryDto
+                        {
+                            FamilyId = family.Id,
+                            FamilyName = family.FamilyName,
+                            HourlyRate = family.HourlyRate,
+                            Currency = family.Currency.ToString(),
+                            TotalHours = familyLessons.Sum(l => l.DurationMinutes / 60m),
+                            TotalCost = familyLessons.Sum(l => (l.DurationMinutes / 60m) * l.StudentHourlyRate)
+                        };
+                    }
+                }
+                else if (userRole == "Family")
+                {
+                    var family = await GetFamilyByUserId(userId);
+                    if (family != null)
+                    {
+                        familySummary = new FamilySummaryDto
+                        {
+                            FamilyId = family.Id,
+                            FamilyName = family.FamilyName,
+                            HourlyRate = family.HourlyRate,
+                            Currency = family.Currency.ToString(),
+                            TotalHours = lessons.Sum(l => l.DurationMinutes / 60m),
+                            TotalCost = lessons.Sum(l => (l.DurationMinutes / 60m) * l.StudentHourlyRate)
+                        };
+                    }
+                }
+
                 var response = new LessonsInvoicesResponseDto
                 {
                     Lessons = lessonInvoices,
                     TeacherSummary = teacherSummary,
+                    FamilySummary = familySummary,
                     TotalLessons = lessonInvoices.Count,
                     TotalHours = lessonInvoices.Sum(l => l.DurationHours),
                     TotalAmount = lessons.Sum(l => (l.DurationMinutes / 60m) * l.StudentHourlyRate)

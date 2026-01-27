@@ -51,8 +51,8 @@ namespace BilQalaam.Api.Controllers
                 GetCurrentUserRole(), GetCurrentUserId());
 
             return result.IsSuccess
-                ? Ok(ApiResponseDto<PaginatedResponseDto<LessonResponseDto>>.Success(result.Data!, "تم استرجاع الدروس بنجاح"))
-                : BadRequest(ApiResponseDto<PaginatedResponseDto<LessonResponseDto>>.Fail(result.Errors, "فشل في جلب الدروس", 400));
+                ? Ok(ApiResponseDto<LessonPaginatedResponseDto>.Success(result.Data!, "تم استرجاع الدروس بنجاح"))
+                : BadRequest(ApiResponseDto<LessonPaginatedResponseDto>.Fail(result.Errors, "فشل في جلب الدروس", 400));
         }
 
         // ✅ GET: api/Lessons/get/{id}

@@ -6,7 +6,7 @@ namespace BilQalaam.Application.Interfaces
 {
     public interface ILessonService
     {
-        Task<Result<PaginatedResponseDto<LessonResponseDto>>> GetAllAsync(
+        Task<Result<LessonPaginatedResponseDto>> GetAllAsync(
             int pageNumber,
             int pageSize,
             IEnumerable<int>? supervisorIds,

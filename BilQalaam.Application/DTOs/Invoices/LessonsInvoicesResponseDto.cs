@@ -11,6 +11,8 @@ namespace BilQalaam.Application.DTOs.Invoices
         // ??û?? »Ì«‰«  «·„⁄·„ (≈–«  „ «·›· —… »„⁄·„ „⁄Ì‰ √Ê ≈–« ﬂ«‰ «·„” Œœ„ „⁄·„)
         public TeacherSummaryDto? TeacherSummary { get; set; }
 
+        public FamilySummaryDto? FamilySummary { get; set; }
+
         // ?????? ??????? SuperAdmin
         public SuperAdminSummaryDto? SuperAdminSummary { get; set; }
 
@@ -34,6 +36,16 @@ namespace BilQalaam.Application.DTOs.Invoices
 
         // ?? ≈Ã„«·Ì ›·Ê” «·„⁄·„
         public decimal TotalEarnings { get; set; }
+    }
+
+    public class FamilySummaryDto
+    {
+        public int FamilyId { get; set; }
+        public string FamilyName { get; set; } = string.Empty;
+        public decimal HourlyRate { get; set; }
+        public string Currency { get; set; } = string.Empty;
+        public decimal TotalHours { get; set; }
+        public decimal TotalCost { get; set; }
     }
 
     public class SuperAdminSummaryDto

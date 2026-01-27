@@ -20,7 +20,7 @@ namespace BilQalaam.Application.Services
             _mapper = mapper;
         }
 
-        public async Task<Result<PaginatedResponseDto<LessonResponseDto>>> GetAllAsync(
+        public async Task<Result<LessonPaginatedResponseDto>> GetAllAsync(
             int pageNumber,
             int pageSize,
             IEnumerable<int>? supervisorIds,
@@ -37,6 +37,7 @@ namespace BilQalaam.Application.Services
                 IQueryable<Lesson> query = _unitOfWork
                     .Repository<Lesson>()
                     .Query()
+                    .OrderByDescending(x => x.LessonDate)
                     .Include(l => l.Student)
                     .Include(l => l.Teacher)
                     .Include(l => l.Supervisor)
@@ -71,6 +72,11 @@ namespace BilQalaam.Application.Services
                 query = ApplyRoleFilter(query, role, userId);
 
                 var totalCount = await query.CountAsync();
+                
+                // Calculate Total Hours
+                var totalMinutes = await query.SumAsync(l => l.DurationMinutes);
+                double totalHours = totalMinutes / 60.0;
+
                 var lessons = await query
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
@@ -78,18 +84,19 @@ namespace BilQalaam.Application.Services
 
                 var pagesCount = (int)Math.Ceiling(totalCount / (double)pageSize);
 
-                return Result<PaginatedResponseDto<LessonResponseDto>>.Success(new PaginatedResponseDto<LessonResponseDto>
+                return Result<LessonPaginatedResponseDto>.Success(new LessonPaginatedResponseDto
                 {
                     Items = _mapper.Map<List<LessonResponseDto>>(lessons),
                     PageNumber = pageNumber,
                     PageSize = pageSize,
                     TotalCount = totalCount,
-                    PagesCount = pagesCount
+                    PagesCount = pagesCount,
+                    TotalHours = totalHours
                 });
             }
             catch (Exception ex)
             {
-                return Result<PaginatedResponseDto<LessonResponseDto>>.Failure($"خطأ في جلب الدروس: {ex.Message}");
+                return Result<LessonPaginatedResponseDto>.Failure($"خطأ في جلب الدروس: {ex.Message}");
             }
         }
 
