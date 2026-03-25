@@ -6,5 +6,6 @@ namespace BilQalaam.Application.Interfaces
     public interface IAuthService
     {
         Task<Result<LoginResponseDto>> LoginAsync(LoginRequestDto dto);
+        Task<Result<bool>> ChangePasswordAsync(string userId, ChangePasswordRequestDto dto);
     }
 }

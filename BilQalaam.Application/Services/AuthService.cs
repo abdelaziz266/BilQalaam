@@ -3,6 +3,7 @@ using BilQalaam.Application.Interfaces;
 using BilQalaam.Application.Results;
 using BilQalaam.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
+using System.Security.Claims;
 
 namespace BilQalaam.Application.Services
 {
@@ -18,7 +19,6 @@ namespace BilQalaam.Application.Services
             _userManager = userManager;
             _tokenService = tokenService;
         }
-
         public async Task<Result<LoginResponseDto>> LoginAsync(LoginRequestDto dto)
         {
             try
@@ -49,6 +49,34 @@ namespace BilQalaam.Application.Services
             catch (Exception ex)
             {
                 return Result<LoginResponseDto>.Failure($"خطأ في تسجيل الدخول: {ex.Message}");
+            }
+        }
+
+        public async Task<Result<bool>> ChangePasswordAsync(string userId, ChangePasswordRequestDto dto)
+        {
+            try
+            {
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                    return Result<bool>.Failure("المستخدم غير موجود");
+
+                var validPassword = await _userManager.CheckPasswordAsync(user, dto.CurrentPassword);
+                if (!validPassword)
+                    return Result<bool>.Failure("كلمة المرور الحالية غير صحيحة");
+
+                var result = await _userManager.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
+
+                if (!result.Succeeded)
+                {
+                    var errors = result.Errors.Select(e => e.Description).ToList();
+                    return Result<bool>.Failure(errors);
+                }
+
+                return Result<bool>.Success(true);
+            }
+            catch (Exception ex)
+            {
+                return Result<bool>.Failure($"خطأ في تغيير كلمة المرور: {ex.Message}");
             }
         }
     }
