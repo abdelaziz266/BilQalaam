@@ -49,7 +49,7 @@ namespace BilQalaam.Api.Controllers
         }
 
         [HttpPost("change-password")]
-        [Authorize]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto dto)
         {
             if (!ModelState.IsValid)
