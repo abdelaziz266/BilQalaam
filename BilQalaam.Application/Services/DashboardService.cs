@@ -47,8 +47,9 @@ namespace BilQalaam.Application.Services
                         .CountAsync();
 
                     dashboard.StudentsCount = await _unitOfWork.Repository<Student>().Query()
-                        .Include(s => s.Teacher)
-                        .Where(s => s.Teacher.SupervisorId == supervisor.Id)
+                        .Include(s => s.StudentTeachers)
+                            .ThenInclude(st => st.Teacher)
+                        .Where(s => s.StudentTeachers.Any(st => st.Teacher.SupervisorId == supervisor.Id))
                         .CountAsync();
 
                     dashboard.TotalLessonsCount = await _unitOfWork.Repository<Lesson>().Query()
@@ -62,8 +63,8 @@ namespace BilQalaam.Application.Services
                     if (teacher == null)
                         return Result<DashboardDto>.Failure("·„ Ì „ «·⁄ÀÊ— ⁄·Ï »Ì«‰«  «·„⁄·„");
 
-                    dashboard.StudentsCount = await _unitOfWork.Repository<Student>().Query()
-                        .Where(s => s.TeacherId == teacher.Id)
+                    dashboard.StudentsCount = await _unitOfWork.Repository<StudentTeacher>().Query()
+                        .Where(st => st.TeacherId == teacher.Id)
                         .CountAsync();
 
                     dashboard.TotalLessonsCount = await _unitOfWork.Repository<Lesson>().Query()

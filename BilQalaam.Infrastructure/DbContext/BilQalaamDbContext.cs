@@ -19,6 +19,7 @@ namespace BilQalaam.Infrastructure.Persistence
         public DbSet<Teacher> Teachers { get; set; }
         public DbSet<Supervisor> Supervisors { get; set; }
         public DbSet<Student> Students { get; set; }
+        public DbSet<StudentTeacher> StudentTeachers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -112,11 +113,20 @@ namespace BilQalaam.Infrastructure.Persistence
                 .HasForeignKey(s => s.FamilyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Student → Teacher relationship (Many-to-One)
-            builder.Entity<Student>()
-                .HasOne(s => s.Teacher)
+            // StudentTeacher (Many-to-Many between Student and Teacher)
+            builder.Entity<StudentTeacher>()
+                .HasKey(st => new { st.StudentId, st.TeacherId });
+
+            builder.Entity<StudentTeacher>()
+                .HasOne(st => st.Student)
+                .WithMany(s => s.StudentTeachers)
+                .HasForeignKey(st => st.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<StudentTeacher>()
+                .HasOne(st => st.Teacher)
                 .WithMany()
-                .HasForeignKey(s => s.TeacherId)
+                .HasForeignKey(st => st.TeacherId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

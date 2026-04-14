@@ -161,7 +161,10 @@ namespace BilQalaam.Application.Services
                     if (teacher == null)
                         return Result<int>.Failure("لم يتم العثور على بيانات المعلم");
 
-                    if (student.TeacherId != teacher.Id)
+                    // تحقق من أن الطالب مرتبط بهذا المعلم
+                    var studentTeachers = await _unitOfWork.Repository<StudentTeacher>()
+                        .FindAsync(st => st.StudentId == student.Id && st.TeacherId == teacher.Id);
+                    if (!studentTeachers.Any())
                         return Result<int>.Failure("هذا الطالب ليس من طلابك");
 
                     teacherId = teacher.Id;

@@ -37,7 +37,8 @@ namespace BilQalaam.Application.Services
                     .Repository<Student>()
                     .Query()
                     .Include(s => s.Family)
-                    .Include(s => s.Teacher);
+                    .Include(s => s.StudentTeachers)
+                        .ThenInclude(st => st.Teacher);
 
                 if (!string.IsNullOrWhiteSpace(searchText))
                 {
@@ -55,7 +56,7 @@ namespace BilQalaam.Application.Services
                 if (teacherIds?.Any() == true)
                 {
                     var teacherIdSet = new HashSet<int>(teacherIds);
-                    query = query.Where(s => teacherIdSet.Contains(s.TeacherId));
+                    query = query.Where(s => s.StudentTeachers.Any(st => teacherIdSet.Contains(st.TeacherId)));
                 }
 
                 if (role == "Teacher")
@@ -64,7 +65,7 @@ namespace BilQalaam.Application.Services
                     if (teacher == null)
                         return Result<PaginatedResponseDto<StudentResponseDto>>.Success(EmptyPaginatedResponse(pageNumber, pageSize));
 
-                    query = query.Where(s => s.TeacherId == teacher.Id);
+                    query = query.Where(s => s.StudentTeachers.Any(st => st.TeacherId == teacher.Id));
                 }
                 else if (role == "Admin")
                 {
@@ -72,7 +73,7 @@ namespace BilQalaam.Application.Services
                     if (supervisor == null)
                         return Result<PaginatedResponseDto<StudentResponseDto>>.Success(EmptyPaginatedResponse(pageNumber, pageSize));
 
-                    query = query.Where(s => s.Teacher.SupervisorId == supervisor.Id);
+                    query = query.Where(s => s.StudentTeachers.Any(st => st.Teacher.SupervisorId == supervisor.Id));
                 }
 
                 var totalCount = await query.CountAsync();
@@ -106,7 +107,8 @@ namespace BilQalaam.Application.Services
                     .Repository<Student>()
                     .Query()
                     .Include(s => s.Family)
-                    .Include(s => s.Teacher)
+                    .Include(s => s.StudentTeachers)
+                        .ThenInclude(st => st.Teacher)
                     .FirstOrDefaultAsync(s => s.Id == id);
 
                 if (student == null)
@@ -115,13 +117,13 @@ namespace BilQalaam.Application.Services
                 if (role == "Teacher")
                 {
                     var teacher = await GetTeacherByUserId(userId);
-                    if (teacher == null || student.TeacherId != teacher.Id)
+                    if (teacher == null || !student.StudentTeachers.Any(st => st.TeacherId == teacher.Id))
                         return Result<StudentResponseDto>.Failure("«·ÿ«·» €Ì— „ÊÃÊœ");
                 }
                 else if (role == "Admin")
                 {
                     var supervisor = await GetSupervisorByUserId(userId);
-                    if (supervisor == null || student.Teacher.SupervisorId != supervisor.Id)
+                    if (supervisor == null || !student.StudentTeachers.Any(st => st.Teacher.SupervisorId == supervisor.Id))
                         return Result<StudentResponseDto>.Failure("«·ÿ«·» €Ì— „ÊÃÊœ");
                 }
 
@@ -151,11 +153,20 @@ namespace BilQalaam.Application.Services
                     return Result<int>.Failure("«·⁄«∆·… €Ì— „ÊÃÊœ…");
                 }
 
-                // Validate teacher
-                var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(dto.TeacherId);
-                if (teacher == null)
+                // Validate teachers
+                if (dto.TeacherIds == null || !dto.TeacherIds.Any())
                 {
-                    return Result<int>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
+                    return Result<int>.Failure("ÌÃ»  ÕœÌœ „⁄·„ Ê«Õœ ⁄·Ï «·√ﬁ·");
+                }
+
+                var teachers = await _unitOfWork.Repository<Teacher>()
+                    .Query()
+                    .Where(t => dto.TeacherIds.Contains(t.Id))
+                    .ToListAsync();
+
+                if (teachers.Count != dto.TeacherIds.Distinct().Count())
+                {
+                    return Result<int>.Failure("»⁄÷ «·„⁄·„Ì‰ €Ì— „ÊÃÊœÌ‰");
                 }
 
                 // Create student
@@ -163,12 +174,25 @@ namespace BilQalaam.Application.Services
                 {
                     StudentName = dto.FullName,
                     FamilyId = dto.FamilyId,
-                    TeacherId = dto.TeacherId,
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = userId
                 };
 
                 await _unitOfWork.Repository<Student>().AddAsync(student);
+                await _unitOfWork.CompleteAsync();
+
+                // Add student-teacher relationships
+                foreach (var teacherId in dto.TeacherIds.Distinct())
+                {
+                    var studentTeacher = new StudentTeacher
+                    {
+                        StudentId = student.Id,
+                        TeacherId = teacherId,
+                        AssignedAt = DateTime.UtcNow
+                    };
+                    await _unitOfWork.Repository<StudentTeacher>().AddAsync(studentTeacher);
+                }
+
                 await _unitOfWork.CompleteAsync();
 
                 return Result<int>.Success(student.Id);
@@ -206,11 +230,20 @@ namespace BilQalaam.Application.Services
                         return Result<IEnumerable<int>>.Failure($"«·⁄«∆·… €Ì— „ÊÃÊœ… ··ÿ«·» {studentDto.FullName}");
                     }
 
-                    // Validate teacher
-                    var teacher = await _unitOfWork.Repository<Teacher>().GetByIdAsync(studentDto.TeacherId);
-                    if (teacher == null)
+                    // Validate teachers
+                    if (studentDto.TeacherIds == null || !studentDto.TeacherIds.Any())
                     {
-                        return Result<IEnumerable<int>>.Failure($"«·„⁄·„ €Ì— „ÊÃÊœ ··ÿ«·» {studentDto.FullName}");
+                        return Result<IEnumerable<int>>.Failure($"ÌÃ»  ÕœÌœ „⁄·„ Ê«Õœ ⁄·Ï «·√ﬁ· ··ÿ«·» {studentDto.FullName}");
+                    }
+
+                    var teachers = await _unitOfWork.Repository<Teacher>()
+                        .Query()
+                        .Where(t => studentDto.TeacherIds.Contains(t.Id))
+                        .ToListAsync();
+
+                    if (teachers.Count != studentDto.TeacherIds.Distinct().Count())
+                    {
+                        return Result<IEnumerable<int>>.Failure($"»⁄÷ «·„⁄·„Ì‰ €Ì— „ÊÃÊœÌ‰ ··ÿ«·» {studentDto.FullName}");
                     }
 
                     // Create student
@@ -218,12 +251,25 @@ namespace BilQalaam.Application.Services
                     {
                         StudentName = studentDto.FullName,
                         FamilyId = studentDto.FamilyId,
-                        TeacherId = studentDto.TeacherId,
                         CreatedAt = DateTime.UtcNow,
                         CreatedBy = userId
                     };
 
                     await _unitOfWork.Repository<Student>().AddAsync(student);
+                    await _unitOfWork.CompleteAsync();
+
+                    // Add student-teacher relationships
+                    foreach (var teacherId in studentDto.TeacherIds.Distinct())
+                    {
+                        var studentTeacher = new StudentTeacher
+                        {
+                            StudentId = student.Id,
+                            TeacherId = teacherId,
+                            AssignedAt = DateTime.UtcNow
+                        };
+                        await _unitOfWork.Repository<StudentTeacher>().AddAsync(studentTeacher);
+                    }
+
                     createdStudentIds.Add(student.Id);
                 }
 
@@ -243,6 +289,7 @@ namespace BilQalaam.Application.Services
                 // 1?? ÃÌ» «·ÿ«·» (Tracked)
                 var student = await _unitOfWork.Repository<Student>()
                     .Query()
+                    .Include(s => s.StudentTeachers)
                     .FirstOrDefaultAsync(s => s.Id == id);
 
                 if (student == null)
@@ -268,27 +315,57 @@ namespace BilQalaam.Application.Services
                 if (!familyExists)
                     return Result<bool>.Failure("«·⁄«∆·… €Ì— „ÊÃÊœ…");
 
-                // 4??  Õﬁﬁ „‰ ÊÃÊœ «·„⁄·„ (»œÊ‰ Tracking)
-                var teacherExists = await _unitOfWork.Repository<Teacher>()
+                // 4??  Õﬁﬁ „‰ ÊÃÊœ «·„⁄·„Ì‰
+                if (dto.TeacherIds == null || !dto.TeacherIds.Any())
+                    return Result<bool>.Failure("ÌÃ»  ÕœÌœ „⁄·„ Ê«Õœ ⁄·Ï «·√ﬁ·");
+
+                var distinctTeacherIds = dto.TeacherIds.Distinct().ToList();
+                var teacherCount = await _unitOfWork.Repository<Teacher>()
                     .Query()
                     .AsNoTracking()
-                    .AnyAsync(t => t.Id == dto.TeacherId);
+                    .CountAsync(t => distinctTeacherIds.Contains(t.Id));
 
-                if (!teacherExists)
-                    return Result<bool>.Failure("«·„⁄·„ €Ì— „ÊÃÊœ");
+                if (teacherCount != distinctTeacherIds.Count)
+                    return Result<bool>.Failure("»⁄÷ «·„⁄·„Ì‰ €Ì— „ÊÃÊœÌ‰");
 
-                // 5?? «· ÕœÌÀ (FK only)
+                // 5?? «· ÕœÌÀ
                 student.StudentName = dto.FullName;
-
-                // ?? √Â„ ”ÿ—Ì‰
                 student.FamilyId = dto.FamilyId;
-
-                student.TeacherId = dto.TeacherId;
                 student.UpdatedAt = DateTime.UtcNow;
                 student.UpdatedBy = userId;
-                 _unitOfWork.Repository<Student>().Update(student);
 
-                // 6?? Save ›ﬁÿ (»œÊ‰ Update)
+                // 6??  ÕœÌÀ «·⁄·«ﬁ… „⁄ «·„⁄·„Ì‰ - Õ–› «·⁄·«ﬁ«  «·ﬁœÌ„…
+                var existingTeacherIds = student.StudentTeachers.Select(st => st.TeacherId).ToList();
+                
+                // Õ–› «·⁄·«ﬁ«  «· Ì ·„  ⁄œ „ÊÃÊœ…
+                var teachersToRemove = student.StudentTeachers
+                    .Where(st => !distinctTeacherIds.Contains(st.TeacherId))
+                    .ToList();
+                
+                foreach (var st in teachersToRemove)
+                {
+                    _unitOfWork.Repository<StudentTeacher>().Delete(st);
+                }
+
+                // ≈÷«›… «·⁄·«ﬁ«  «·ÃœÌœ…
+                var teachersToAdd = distinctTeacherIds
+                    .Where(tid => !existingTeacherIds.Contains(tid))
+                    .ToList();
+                
+                foreach (var teacherId in teachersToAdd)
+                {
+                    var studentTeacher = new StudentTeacher
+                    {
+                        StudentId = student.Id,
+                        TeacherId = teacherId,
+                        AssignedAt = DateTime.UtcNow
+                    };
+                    await _unitOfWork.Repository<StudentTeacher>().AddAsync(studentTeacher);
+                }
+
+                _unitOfWork.Repository<Student>().Update(student);
+
+                // 7?? Save
                 await _unitOfWork.CompleteAsync();
 
                 return Result<bool>.Success(true);
@@ -367,8 +444,9 @@ namespace BilQalaam.Application.Services
                     .Repository<Student>()
                     .Query()
                     .Include(s => s.Family)
-                    .Include(s => s.Teacher)
-                    .Where(s => s.TeacherId == teacherId);
+                    .Include(s => s.StudentTeachers)
+                        .ThenInclude(st => st.Teacher)
+                    .Where(s => s.StudentTeachers.Any(st => st.TeacherId == teacherId));
 
                 var students = await query.ToListAsync();
 

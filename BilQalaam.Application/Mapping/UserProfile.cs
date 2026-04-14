@@ -74,8 +74,12 @@ namespace BilQalaam.Application.Mapping
             CreateMap<Student, StudentResponseDto>()
                 .ForMember(dest => dest.FamilyName,
                     opt => opt.MapFrom(src => src.Family != null ? src.Family.FamilyName : null))
-                .ForMember(dest => dest.TeacherName,
-                    opt => opt.MapFrom(src => src.Teacher != null ? src.Teacher.TeacherName : null));
+                .ForMember(dest => dest.Teachers,
+                    opt => opt.MapFrom(src => src.StudentTeachers.Select(st => new TeacherInfoDto
+                    {
+                        TeacherId = st.TeacherId,
+                        TeacherName = st.Teacher != null ? st.Teacher.TeacherName : string.Empty
+                    }).ToList()));
         }
     }
 }

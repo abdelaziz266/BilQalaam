@@ -286,9 +286,12 @@ namespace BilQalaam.Application.Services
                 var students = new List<Student>();
                 if (teacherIds.Any())
                 {
-                    students = (await _unitOfWork.Repository<Student>()
-                        .FindAsync(s => teacherIds.Contains(s.TeacherId) && !s.IsDeleted))
-                        .ToList();
+                    var studentTeachers = await _unitOfWork.Repository<StudentTeacher>()
+                        .Query()
+                        .Include(st => st.Student)
+                        .Where(st => teacherIds.Contains(st.TeacherId) && !st.Student.IsDeleted)
+                        .ToListAsync();
+                    students = studentTeachers.Select(st => st.Student).Distinct().ToList();
                 }
 
                 var supervisorDetailsDto = new SupervisorDetailsDto
@@ -338,12 +341,14 @@ namespace BilQalaam.Application.Services
 
                 // جيب جميع الطلاب المرتبطين بالمعلمين
                 var teacherIds = allTeachers.Select(t => t.Id).ToList();
-                var allStudents = new List<Student>();
+                var allStudentTeachers = new List<StudentTeacher>();
                 if (teacherIds.Any())
                 {
-                    allStudents = (await _unitOfWork.Repository<Student>()
-                        .FindAsync(s => teacherIds.Contains(s.TeacherId) && !s.IsDeleted))
-                        .ToList();
+                    allStudentTeachers = await _unitOfWork.Repository<StudentTeacher>()
+                        .Query()
+                        .Include(st => st.Student)
+                        .Where(st => teacherIds.Contains(st.TeacherId) && !st.Student.IsDeleted)
+                        .ToListAsync();
                 }
 
                 // بناء استجابة لكل مشرف
@@ -352,7 +357,11 @@ namespace BilQalaam.Application.Services
                     var supervisorTeachers = allTeachers.Where(t => t.SupervisorId == supervisor.Id).ToList();
                     var supervisorFamilies = allFamilies.Where(f => f.SupervisorId == supervisor.Id).ToList();
                     var supervisorTeacherIds = supervisorTeachers.Select(t => t.Id).ToList();
-                    var supervisorStudents = allStudents.Where(s => supervisorTeacherIds.Contains(s.TeacherId)).ToList();
+                    var supervisorStudents = allStudentTeachers
+                        .Where(st => supervisorTeacherIds.Contains(st.TeacherId))
+                        .Select(st => st.Student)
+                        .Distinct()
+                        .ToList();
 
                     supervisorDetailsList.Add(new SupervisorDetailsDto
                     {

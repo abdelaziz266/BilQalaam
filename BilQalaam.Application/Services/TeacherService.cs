@@ -272,8 +272,8 @@ namespace BilQalaam.Application.Services
                     return Result<bool>.Failure("ÇáãÚáã ÛíÑ ãæÌæÏ");
 
                 // ÇáÊÍŞŞ ãä æÌæÏ ØáÇÈ ãÑÊÈØíä ÈÇáãÚáã
-                var students = await _unitOfWork.Repository<Student>().FindAsync(s => s.TeacherId == id && !s.IsDeleted);
-                if (students.Any())
+                var studentTeachers = await _unitOfWork.Repository<StudentTeacher>().FindAsync(st => st.TeacherId == id);
+                if (studentTeachers.Any())
                     return Result<bool>.Failure("áÇ íãßä ÍĞİ ÇáãÚáã áÃä åäÇß ØáÇÈ ãÑÊÈØíä Èå");
 
                 // ÇáÊÍŞŞ ãä æÌæÏ ÏÑæÓ ãÑÊÈØÉ ÈÇáãÚáã
@@ -395,9 +395,12 @@ namespace BilQalaam.Application.Services
                 }
 
                 // ÌíÈ ÇáØáÇÈ ÇáãÑÊÈØíä ÈÇáãÚáã
-                var students = (await _unitOfWork.Repository<Student>()
-                    .FindAsync(s => s.TeacherId == teacherId && !s.IsDeleted))
-                    .ToList();
+                var studentTeachers = await _unitOfWork.Repository<StudentTeacher>()
+                    .Query()
+                    .Include(st => st.Student)
+                    .Where(st => st.TeacherId == teacherId && !st.Student.IsDeleted)
+                    .ToListAsync();
+                var students = studentTeachers.Select(st => st.Student).ToList();
 
                 var teacherDetailsDto = new TeacherDetailsDto
                 {
@@ -449,9 +452,11 @@ namespace BilQalaam.Application.Services
                 }
 
                 // ÌíÈ ÌãíÚ ÇáØáÇÈ ÇáãÑÊÈØíä ÈÇáãÚáãíä
-                var allStudents = (await _unitOfWork.Repository<Student>()
-                    .FindAsync(s => teacherIdList.Contains(s.TeacherId) && !s.IsDeleted))
-                    .ToList();
+                var allStudentTeachers = await _unitOfWork.Repository<StudentTeacher>()
+                    .Query()
+                    .Include(st => st.Student)
+                    .Where(st => teacherIdList.Contains(st.TeacherId) && !st.Student.IsDeleted)
+                    .ToListAsync();
 
                 // ÈäÇÁ ÇÓÊÌÇÈÉ áßá ãÚáã
                 foreach (var teacher in teachers)
@@ -460,7 +465,10 @@ namespace BilQalaam.Application.Services
                         ? allFamilies.Where(f => f.SupervisorId == teacher.SupervisorId).ToList()
                         : new List<Family>();
 
-                    var teacherStudents = allStudents.Where(s => s.TeacherId == teacher.Id).ToList();
+                    var teacherStudents = allStudentTeachers
+                        .Where(st => st.TeacherId == teacher.Id)
+                        .Select(st => st.Student)
+                        .ToList();
 
                     teacherDetailsList.Add(new TeacherDetailsDto
                     {
